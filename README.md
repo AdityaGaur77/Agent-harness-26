@@ -58,9 +58,12 @@ npm run smoke                                  # third shell, same env vars
 - [x] Read-only tools: `inspect_schema`, `list_foreign_keys`, `get_retention_policies`, `find_subject_data`, `snapshot_to_shadow`, `rehearse_deletion`
 - [x] Gated destructive tool: `execute_deletion` (`destructiveHint` annotation)
 - [x] Agent manifest + SDK provisioning script
+- [x] Compose stack builds and passes the 28-check smoke suite end to end
+- [x] Runbook (`docs/runbook.md`)
 - [ ] Seed data + rehearsal runner (Nishad)
 - [ ] Skill + scenarios (Amelia)
 - [ ] UI (Aarav)
+- [ ] Live TrueForge integration test (connector registration, gate firing in a real session)
 
 ## AI-use disclosure
 
