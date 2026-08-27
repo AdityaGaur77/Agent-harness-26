@@ -1,0 +1,62 @@
+# Blast Radius — local stack.
+#
+# Ownership note: the `postgres` seed volume and the TrueForge services are
+# Nishad's to extend (schema, Faker seed, shadow tooling). The `mcp-server`
+# service is the subject-data MCP server and is wired in from day one,
+# because TrueForge connects to MCP servers by URL over HTTP — there is no
+# stdio fallback to lean on if it is left until later.
+
+name: blast-radius
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: blastradius
+      POSTGRES_PASSWORD: blastradius
+      POSTGRES_DB: subject_data
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Anything dropped in here runs once, in filename order, on first boot.
+      - ./demo/seed:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U blastradius -d subject_data']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mcp-server:
+    build:
+      context: .
+      dockerfile: packages/mcp-subject-data/Dockerfile
+    environment:
+      DATABASE_URL: postgres://blastradius:blastradius@postgres:5432/subject_data
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:?set MCP_AUTH_TOKEN in .env}
+      MCP_PORT: '8080'
+      LIVE_SCHEMA: public
+      SHADOW_SCHEMA: shadow
+      STATEMENT_TIMEOUT_MS: '30000'
+      LOCK_TIMEOUT_MS: '5000'
+    ports:
+      # Published so the agent harness can reach it from outside the network.
+      # Inside the network other services use http://mcp-server:8080/mcp.
+      - '8080:8080'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  pgdata:

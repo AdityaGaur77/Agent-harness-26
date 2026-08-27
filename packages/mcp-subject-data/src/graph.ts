@@ -34,12 +34,16 @@ export async function loadForeignKeys(
             child.relname              AS child_table,
             parent.relname             AS parent_table,
             con.confdeltype::text      AS on_delete_code,
-            (SELECT array_agg(att.attname ORDER BY u.ord)
+            -- ::text is load-bearing. pg_attribute.attname has SQL type name,
+            -- so an uncast array_agg yields name[] (OID 1003), which node-pg
+            -- has no parser for — it would arrive as the raw string
+            -- "{customer_id}" and every .map() over it would throw.
+            (SELECT array_agg(att.attname::text ORDER BY u.ord)
                FROM unnest(con.conkey) WITH ORDINALITY AS u(attnum, ord)
                JOIN pg_attribute att
                  ON att.attrelid = con.conrelid AND att.attnum = u.attnum
             )                          AS child_columns,
-            (SELECT array_agg(att.attname ORDER BY u.ord)
+            (SELECT array_agg(att.attname::text ORDER BY u.ord)
                FROM unnest(con.confkey) WITH ORDINALITY AS u(attnum, ord)
                JOIN pg_attribute att
                  ON att.attrelid = con.confrelid AND att.attnum = u.attnum

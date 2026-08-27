@@ -44,6 +44,16 @@ export function qualify(schema: string, table: string): string {
 
 export type Client = pg.PoolClient;
 
+/**
+ * Apply the per-transaction ceilings. Must be called AFTER BEGIN: SET LOCAL
+ * outside a transaction block is a no-op that only warns, which would leave a
+ * runaway plan free to hold locks indefinitely.
+ */
+async function applyTimeouts(client: Client): Promise<void> {
+  await client.query(`SET LOCAL statement_timeout = ${config.statementTimeoutMs}`);
+  await client.query(`SET LOCAL lock_timeout = ${config.lockTimeoutMs}`);
+}
+
 /** Run `fn` with a pooled client, always releasing it. */
 export async function withClient<T>(fn: (c: Client) => Promise<T>): Promise<T> {
   const client = await pool.connect();
@@ -60,9 +70,11 @@ export async function withClient<T>(fn: (c: Client) => Promise<T>): Promise<T> {
  */
 export async function withTransaction<T>(fn: (c: Client) => Promise<T>): Promise<T> {
   return withClient(async (client) => {
-    await client.query(`SET LOCAL statement_timeout = ${config.statementTimeoutMs}`);
-    await client.query(`SET LOCAL lock_timeout = ${config.lockTimeoutMs}`);
     await client.query('BEGIN');
+    // SET LOCAL only takes effect inside a transaction block — issued before
+    // BEGIN, Postgres warns "SET LOCAL can only be used in transaction blocks"
+    // and the timeout silently stays unlimited.
+    await applyTimeouts(client);
     try {
       const out = await fn(client);
       await client.query('COMMIT');
@@ -84,9 +96,8 @@ export async function withTransaction<T>(fn: (c: Client) => Promise<T>): Promise
  */
 export async function withRollback<T>(fn: (c: Client) => Promise<T>): Promise<T> {
   return withClient(async (client) => {
-    await client.query(`SET LOCAL statement_timeout = ${config.statementTimeoutMs}`);
-    await client.query(`SET LOCAL lock_timeout = ${config.lockTimeoutMs}`);
     await client.query('BEGIN');
+    await applyTimeouts(client);
     try {
       return await fn(client);
     } finally {

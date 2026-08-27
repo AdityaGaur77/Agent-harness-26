@@ -8,7 +8,7 @@
 /** A row of `retention_policies`, read from the database — never hardcoded. */
 export interface RetentionPolicy {
   table_name: string;
-  /** Legal basis for keeping the row, e.g. "tax". "none" means no obligation. */
+  /** Legal basis for keeping the row. Whatever the policy row says. */
   basis: string;
   retain_years: number;
   /** Columns holding personal data on this table. */
@@ -111,7 +111,11 @@ export interface RehearsalResult {
   constraints_blocked: string[];
   /** Cross-referenced against `retention_policies` read from the database. */
   retention_violations: RetentionViolation[];
-  /** True when the plan ran to completion with no blocked constraint. */
+  /**
+   * True only when this plan is safe to execute: nothing blocked it AND it
+   * destroyed nothing the retention policies protect. A plan can run
+   * flawlessly and still be illegal, so completion alone is not enough.
+   */
   ok: boolean;
 }
 
