@@ -6,8 +6,12 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 
 const BASE_URL = process.env.MCP_URL || "http://127.0.0.1:8080";
 const TOKEN = process.env.MCP_AUTH_TOKEN || "dev-token";
+// Follow the same host port compose publishes, so the two defaults cannot
+// drift apart: docker-compose.yml maps ${POSTGRES_HOST_PORT:-5432}:5432.
+const PG_HOST_PORT = process.env.POSTGRES_HOST_PORT || "5432";
 const DATABASE_URL =
-  process.env.DATABASE_URL || "postgresql://blast:blast@127.0.0.1:55432/blast_main";
+  process.env.DATABASE_URL ||
+  `postgresql://blast:blast@127.0.0.1:${PG_HOST_PORT}/blast_main`;
 
 let passed = 0;
 let failed = 0;
