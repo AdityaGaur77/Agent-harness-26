@@ -31,6 +31,25 @@ function payload(result) {
   }
 }
 
+/**
+ * snapshot_to_shadow rebuilds the shadow database with
+ * CREATE DATABASE ... TEMPLATE, and Postgres allows that only when nothing
+ * else is connected to the template. The template here is production, so the
+ * snapshot terminates every other backend on it — this client included.
+ * Any admin query issued after a snapshot has to reconnect first.
+ */
+async function reconnectAdminIfDropped(admin) {
+  try {
+    await admin.query("SELECT 1");
+    return admin;
+  } catch {
+    const fresh = new pg.Client({ connectionString: DATABASE_URL });
+    fresh.on("error", () => undefined);
+    await fresh.connect();
+    return fresh;
+  }
+}
+
 async function main() {
   let admin = new pg.Client({ connectionString: DATABASE_URL });
   admin.on("error", () => undefined);
@@ -131,13 +150,7 @@ async function main() {
   const snap = payload(await client.callTool({ name: "snapshot_to_shadow", arguments: {} }));
   check("snapshot_to_shadow clones production", typeof snap.duration_ms === "number", JSON.stringify(snap));
 
-  try {
-    await admin.query("SELECT 1");
-  } catch {
-    admin = new pg.Client({ connectionString: DATABASE_URL });
-    admin.on("error", () => undefined);
-    await admin.connect();
-  }
+  admin = await reconnectAdminIfDropped(admin);
 
   const naivePlan = {
     subject_id: 4471,
@@ -168,6 +181,49 @@ async function main() {
     (naive.rows_orphaned ?? []).reduce((s, o) => s + o.rows_orphaned, 0) === 9,
     JSON.stringify(naive.rows_orphaned),
   );
+
+  // A `where` fragment is written by the model, and the only checks on it are
+  // that it has no semicolons and mentions :subject_id. Mentioning is not
+  // bounding: "customer_id = :subject_id OR true" satisfies both and matches
+  // the whole table. The subject scope is therefore derived from the
+  // foreign-key graph and ANDed onto every step, so a fragment can narrow a
+  // step's reach but never widen it. Same code path runs in production.
+  await client.callTool({ name: "snapshot_to_shadow", arguments: {} });
+  const scopedOrders = payload(
+    await client.callTool({
+      name: "rehearse_deletion",
+      arguments: {
+        plan: {
+          subject_id: 4471,
+          steps: [{ table: "orders", action: "hard_delete", where: "customer_id = :subject_id" }],
+        },
+      },
+    }),
+  );
+  const scopedCount = scopedOrders.steps_executed?.[0]?.rows_affected;
+
+  for (const escape of [
+    "customer_id = :subject_id OR true",
+    "customer_id = :subject_id OR 1=1",
+    "id > 0 AND :subject_id > 0",
+  ]) {
+    await client.callTool({ name: "snapshot_to_shadow", arguments: {} });
+    const attempt = await client.callTool({
+      name: "rehearse_deletion",
+      arguments: {
+        plan: { subject_id: 4471, steps: [{ table: "orders", action: "hard_delete", where: escape }] },
+      },
+    });
+    const reached = attempt.isError ? 0 : payload(attempt).steps_executed?.[0]?.rows_affected;
+    check(
+      `scope clamp: "${escape}" cannot widen past the subject`,
+      reached === scopedCount,
+      `reached ${reached} rows, subject owns ${scopedCount}`,
+    );
+  }
+
+  await client.callTool({ name: "snapshot_to_shadow", arguments: {} });
+  admin = await reconnectAdminIfDropped(admin);
 
   const revisedPlan = {
     subject_id: 4471,

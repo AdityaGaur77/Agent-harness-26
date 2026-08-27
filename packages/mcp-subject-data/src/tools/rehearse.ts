@@ -14,6 +14,11 @@ import {
   type Queryable,
 } from "../db.js";
 import { fail, ok } from "./shared.js";
+import {
+  buildSubjectScope,
+  subjectScopePredicate,
+  type SubjectScope,
+} from "../subject-scope.js";
 
 export const deletionStepSchema = z.object({
   table: z.string().min(1),
@@ -80,7 +85,13 @@ export class PlanAbortedError extends Error {
   }
 }
 
-function buildWhereSql(prefix: string, where: string, subjectId: number): { text: string; params: unknown[] } {
+function buildWhereSql(
+  prefix: string,
+  where: string,
+  subjectId: number,
+  table: string,
+  scope: SubjectScope,
+): { text: string; params: unknown[] } {
   const cleaned = where.trim().replace(/;+\s*$/, "");
   if (cleaned.includes(";")) {
     throw new Error(`"where" must be a single condition fragment (no statement separators)`);
@@ -88,7 +99,22 @@ function buildWhereSql(prefix: string, where: string, subjectId: number): { text
   if (!/:\s*subject_id\b/.test(cleaned)) {
     throw new Error(`"where" must reference :subject_id so every step stays scoped to the requested subject`);
   }
-  const text = `${prefix} WHERE (${cleaned.replace(/:\s*subject_id/g, "$1")})`;
+
+  // Mentioning :subject_id is not the same as being bounded by it —
+  // `customer_id = :subject_id OR true` passes the check above and matches the
+  // whole table. So the fragment is treated as a narrowing filter only, and
+  // the actual scoping comes from the foreign-key graph, which the model
+  // cannot influence. A step can narrow its reach; it can never widen it.
+  const clamp = subjectScopePredicate(table, scope);
+  if (clamp === null) {
+    throw new Error(
+      `table "${table}" has no foreign-key path to the subject root ` +
+        `("${scope.rootTable}"), so its rows cannot be attributed to a subject; ` +
+        `refusing to run this step rather than guessing its scope`,
+    );
+  }
+
+  const text = `${prefix} WHERE (${cleaned.replace(/:\s*subject_id/g, "$1")}) AND (${clamp})`;
   return { text, params: [subjectId] };
 }
 
@@ -155,6 +181,7 @@ export async function runDeletionPlan(
     await client.query("SET LOCAL statement_timeout = '60s'");
 
     const edges = await listForeignKeys(client);
+    const subjectScope = buildSubjectScope(edges);
     const setNullEdges = edges.filter((e) => e.on_delete === "SET NULL" && known.has(e.child_table));
 
     const beforeCounts = await countRowsPerTable(client, tables);
@@ -170,14 +197,14 @@ export async function runDeletionPlan(
       try {
         let affected: number;
         if (step.action === "hard_delete") {
-          const built = buildWhereSql(`DELETE FROM ${quoteIdent(step.table)}`, step.where!, plan.subject_id);
+          const built = buildWhereSql(`DELETE FROM ${quoteIdent(step.table)}`, step.where!, plan.subject_id, step.table, subjectScope);
           const res = await client.query(built.text, built.params);
           affected = res.rowCount ?? 0;
         } else {
           const setCols = Object.keys(step.set!);
           const assignments = setCols.map((col, j) => `${quoteIdent(col)} = $${j + 2}`);
           const base = `UPDATE ${quoteIdent(step.table)} SET ${assignments.join(", ")}`;
-          const built = buildWhereSql(base, step.where!, plan.subject_id);
+          const built = buildWhereSql(base, step.where!, plan.subject_id, step.table, subjectScope);
           const params = [plan.subject_id, ...setCols.map((col) => step.set![col])];
           const res = await client.query(built.text, params);
           affected = res.rowCount ?? 0;
