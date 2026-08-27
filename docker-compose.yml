@@ -25,18 +25,55 @@ services:
       timeout: 3s
       retries: 20
 
+  demo-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: blast
+      POSTGRES_PASSWORD: blast
+      POSTGRES_DB: blast_demo
+    volumes:
+      - demo-pgdata:/var/lib/postgresql/data
+      - ./demo/seed/001-schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blast -d blast_demo"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - demo-internal
+
+  demo-seed:
+    build: demo/seed
+    environment:
+      DATABASE_URL: postgresql://blast:blast@demo-postgres:5432/blast_demo
+      SEED_CUSTOMER_COUNT: "5000"
+    depends_on:
+      demo-postgres:
+        condition: service_healthy
+    networks:
+      - demo-internal
+    restart: "no"
+
   mcp-server:
     build: packages/mcp-subject-data
     environment:
-      DATABASE_URL: postgresql://blast:blast@postgres:5432/blast_main
+      DATABASE_URL: postgresql://blast:blast@demo-postgres:5432/blast_demo
       SHADOW_DB_NAME: blast_shadow
       MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:?set MCP_AUTH_TOKEN in .env}
       PORT: "8080"
     ports:
       - "${MCP_HOST_PORT:-8080}:8080"
     depends_on:
-      postgres:
-        condition: service_healthy
+      demo-seed:
+        condition: service_completed_successfully
+    networks:
+      - default
+      - demo-internal
 
 volumes:
   pgdata:
+  demo-pgdata:
+
+networks:
+  demo-internal:
+    internal: true
