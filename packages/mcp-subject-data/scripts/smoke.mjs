@@ -115,7 +115,14 @@ async function main() {
     exAnn.destructiveHint === true && exAnn.readOnlyHint === false,
     JSON.stringify(exAnn),
   );
-  check("exactly one destructive tool registered", tools.tools.length === 7, `count=${tools.tools.length}`);
+  check("exactly one destructive tool registered", tools.tools.length >= 7 && tools.tools.filter((t) => t.annotations?.destructiveHint).length === 1, `count=${tools.tools.length}`);
+
+  if (byName.lookup_subject_by_name) {
+    const ann = byName.lookup_subject_by_name.annotations ?? {};
+    check("lookup_subject_by_name is annotated READ_ONLY", ann.readOnlyHint === true && ann.destructiveHint === false, JSON.stringify(ann));
+    const lookup = payload(await client.callTool({ name: "lookup_subject_by_name", arguments: { full_name: "Jane Q Synthetic" } }));
+    check("lookup by gov name finds 4471", (lookup.matches ?? []).some((m) => Number(m.id) === 4471), JSON.stringify(lookup.matches));
+  }
 
   const schema = payload(await client.callTool({ name: "inspect_schema", arguments: {} }));
   check(

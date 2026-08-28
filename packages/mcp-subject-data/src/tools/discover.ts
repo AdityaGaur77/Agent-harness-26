@@ -170,6 +170,34 @@ export function registerDiscoverTools(server: McpServer): void {
   );
 
   server.registerTool(
+    "lookup_subject_by_name",
+    {
+      title: "Lookup subject by name",
+      description:
+        "Search customers by full government name. Returns matching ids, full names and emails. Use this when you have a name like 'Jane Q Synthetic' instead of a numeric id, then pass the returned id to find_subject_data.",
+      inputSchema: {
+        full_name: z.string().min(1).describe("Full government name or partial name to search (case-insensitive)."),
+        limit: z.number().int().min(1).max(20).optional().describe("Max results, default 5."),
+      },
+      annotations: READ_ONLY,
+    },
+    async ({ full_name, limit }) => {
+      try {
+        const db = getPool("main");
+        const q = full_name.trim();
+        const lim = limit ?? 5;
+        const { rows } = await db.query(
+          `SELECT id, full_name, email, phone FROM customers WHERE full_name ILIKE '%' || $1 || '%' ORDER BY full_name LIMIT $2`,
+          [q, lim],
+        );
+        return ok({ query: q, matches: rows, count: rows.length });
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
     "snapshot_to_shadow",
     {
       title: "Snapshot to shadow",

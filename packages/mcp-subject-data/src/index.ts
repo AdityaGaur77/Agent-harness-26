@@ -49,6 +49,22 @@ function buildServer(): McpServer {
 const app = express();
 app.disable("x-powered-by");
 
+// CORS for browser-based UI (localhost:4173 -> localhost:8080)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && (origin.includes("localhost") || origin.includes("127.0.0.1"))) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, mcp-session-id, Accept");
+    res.setHeader("Access-Control-Expose-Headers", "mcp-session-id");
+  }
+  if (req.method === "OPTIONS") {
+    res.sendStatus(204);
+    return;
+  }
+  next();
+});
+
 app.get("/healthz", (_req, res) => {
   res.json({ status: "ok", service: "mcp-subject-data", time: new Date().toISOString() });
 });

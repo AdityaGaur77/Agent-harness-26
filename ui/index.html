@@ -1,0 +1,781 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="A private agent that finds personal information, checks the impact of removal, and carries out approved changes."
+    />
+    <title>Blast Radius: your private data agent</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body data-view="home">
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+        <div class="sidebar-heading">
+          <button class="brand-button" type="button" data-go-home aria-label="Go to home">
+            <span class="brand-mark" aria-hidden="true">[br]</span>
+            <span>Blast Radius</span>
+          </button>
+          <button class="icon-button sidebar-close" id="sidebar-close" type="button" aria-label="Close navigation">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="m5 5 10 10M15 5 5 15" />
+            </svg>
+          </button>
+        </div>
+
+        <nav class="primary-nav" aria-label="Privacy workspace">
+          <button class="nav-button nav-button-primary" id="new-request" type="button">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M10 4v12M4 10h12" />
+            </svg>
+            <span>New request</span>
+          </button>
+          <button class="nav-button is-active" type="button" data-home-panel-target="start">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="m3.5 9 6.5-5.5L16.5 9v7.5h-5v-4h-3v4h-5Z" />
+            </svg>
+            <span>Home</span>
+          </button>
+          <button class="nav-button" type="button" data-home-panel-target="activity">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M10 5.25v5l3 1.75" />
+              <circle cx="10" cy="10" r="7" />
+            </svg>
+            <span>Activity</span>
+          </button>
+          <button class="nav-button" type="button" data-home-panel-target="monitored">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M10 3.25c3.5 0 6 2.6 6 6.25 0 4.15-3.25 6.15-6 7.25-2.75-1.1-6-3.1-6-7.25 0-3.65 2.5-6.25 6-6.25Z" />
+              <path d="M7.5 9.8 9.2 11.5l3.5-3.75" />
+            </svg>
+            <span>Monitored information</span>
+          </button>
+        </nav>
+
+        <section class="sidebar-recents" aria-labelledby="sidebar-recent-title">
+          <div class="sidebar-section-heading">
+            <h2 id="sidebar-recent-title">Recent</h2>
+          </div>
+          <button class="recent-nav-item is-current" type="button" data-open-mission="remove-personal-info">
+            <span class="recent-nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20">
+                <circle cx="9" cy="9" r="5" />
+                <path d="m13 13 3.5 3.5" />
+              </svg>
+            </span>
+            <span class="recent-nav-copy">
+              <strong>Remove my personal information</strong>
+              <small>Waiting for one answer</small>
+            </span>
+            <span class="status-dot is-waiting" aria-hidden="true"></span>
+          </button>
+          <button class="recent-nav-item" type="button" data-open-mission="broker-opt-out">
+            <span class="recent-nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20">
+                <path d="M10 3.5 16 6v4.5c0 3.4-2.5 5.3-6 6.5-3.5-1.2-6-3.1-6-6.5V6Z" />
+                <path d="m7.25 10.25 1.65 1.65 3.8-4" />
+              </svg>
+            </span>
+            <span class="recent-nav-copy">
+              <strong>Opt out of data brokers</strong>
+              <small>Safety check complete</small>
+            </span>
+            <span class="status-check" aria-hidden="true">✓</span>
+          </button>
+          <button class="recent-nav-item" type="button" data-open-mission="address-check">
+            <span class="recent-nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20">
+                <path d="M10 17s5-4.2 5-8.2a5 5 0 0 0-10 0C5 12.8 10 17 10 17Z" />
+                <circle cx="10" cy="8.75" r="1.5" />
+              </svg>
+            </span>
+            <span class="recent-nav-copy">
+              <strong>Check my exposed address</strong>
+              <small>Finished</small>
+            </span>
+            <span class="status-check" aria-hidden="true">✓</span>
+          </button>
+        </section>
+
+        <div class="sidebar-footer">
+          <button class="nav-button" id="connections-button" type="button">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M7 6.5h6v7H7zM9 3.5v3M11 3.5v3M9 13.5v3M11 13.5v3M4 9h3M13 9h3M4 11h3M13 11h3" />
+            </svg>
+            <span>Connections</span>
+          </button>
+          <button class="nav-button" id="permissions-button" type="button">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M10 3.5 16 6v4.5c0 3.4-2.5 5.3-6 6.5-3.5-1.2-6-3.1-6-6.5V6Z" />
+              <path d="M10 8v4M10 14.25h.01" />
+            </svg>
+            <span>What I allow</span>
+          </button>
+          <div class="demo-note" id="harness-status-note">
+            <span class="demo-note-mark" aria-hidden="true">●</span>
+            <p>
+              <strong id="harness-status-title">Harness ready</strong>
+              <span id="harness-status-copy">Local harness at 8080 · Model: unorouter/gpt-oss-120b:free</span>
+            </p>
+          </div>
+        </div>
+      </aside>
+
+      <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="Close navigation"></button>
+
+      <div class="workspace">
+        <header class="topbar">
+          <div class="topbar-leading">
+            <button class="icon-button sidebar-toggle" id="sidebar-toggle" type="button" aria-label="Open navigation">
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M3.5 5.5h13M3.5 10h13M3.5 14.5h13" />
+              </svg>
+            </button>
+            <p class="topbar-title" id="topbar-title">Home</p>
+          </div>
+          <div class="topbar-actions">
+            <span class="demo-pill" id="topbar-status"><span aria-hidden="true"></span> Live</span>
+            <button class="text-button details-topbar-button" id="details-toggle" type="button">
+              What I found
+            </button>
+            <button class="profile-button" type="button" aria-label="Open profile">
+              <span aria-hidden="true">JQ</span>
+            </button>
+          </div>
+        </header>
+
+        <main id="main-content" tabindex="-1">
+          <section class="view home-view" id="home-view" aria-labelledby="home-title">
+            <div class="home-panel" id="start-panel" data-home-panel="start">
+              <div class="home-scroll">
+                <div class="home-intro">
+                  <div class="home-presence">
+                    <pre
+                      class="ascii-presence ascii-presence-home"
+                      id="home-ascii"
+                      role="img"
+                      aria-label="The privacy agent is ready"
+                    ></pre>
+                    <span class="presence-label"><span aria-hidden="true"></span> Private agent ready</span>
+                  </div>
+
+                  <h1 id="home-title">What would you like me to find or remove?</h1>
+                  <p class="home-subtitle">
+                    Tell me what worries you. I’ll figure out where to look, ask only when something truly needs your judgment,
+                    and keep going on my own.
+                  </p>
+
+                  <form class="prompt-card" id="home-form">
+                    <label class="sr-only" for="home-prompt">Describe what you want the agent to find or remove</label>
+                    <textarea
+                      id="home-prompt"
+                      name="mission"
+                      rows="2"
+                      placeholder="For example: Find old addresses and remove them from data broker sites."
+                      required
+                    ></textarea>
+                    <div class="prompt-card-footer">
+                      <button class="composer-tool" id="add-details" type="button">
+                        <svg viewBox="0 0 20 20" aria-hidden="true">
+                          <path d="M10 4v12M4 10h12" />
+                        </svg>
+                        Add details
+                      </button>
+                      <div class="composer-run-mode">
+                        <span class="status-dot is-ready" aria-hidden="true"></span>
+                        <span>Runs on its own</span>
+                      </div>
+                      <button class="send-button" type="submit" aria-label="Start private search">
+                        <svg viewBox="0 0 20 20" aria-hidden="true">
+                          <path d="M10 15.5v-11M5.5 9 10 4.5 14.5 9" />
+                        </svg>
+                      </button>
+                    </div>
+                  </form>
+
+                  <div class="starter-prompts" aria-label="Example requests">
+                    <button type="button" data-starter-prompt="Find where my home address is listed online.">
+                      Find my exposed address
+                    </button>
+                    <button type="button" data-starter-prompt="Remove me from data broker and people-search sites.">
+                      Opt out of data brokers
+                    </button>
+                    <button type="button" data-starter-prompt="Check what someone can learn from my email address.">
+                      Check my email exposure
+                    </button>
+                  </div>
+
+                  <p class="privacy-promise">
+                    <svg viewBox="0 0 20 20" aria-hidden="true">
+                      <path d="M10 3.5 16 6v4.5c0 3.4-2.5 5.3-6 6.5-3.5-1.2-6-3.1-6-6.5V6Z" />
+                      <path d="m7.5 10.25 1.55 1.55 3.45-3.55" />
+                    </svg>
+                    You choose what the agent may change. Anything outside that boundary comes back to you first.
+                  </p>
+                </div>
+
+                <section class="recent-missions" id="recent-missions" aria-labelledby="recent-title">
+                  <div class="section-heading-row">
+                    <div>
+                      <p class="eyebrow">Your privacy work</p>
+                      <h2 id="recent-title">Pick up where you left off</h2>
+                    </div>
+                    <button class="quiet-button" type="button" data-home-panel-target="activity">View all activity</button>
+                  </div>
+                  <div class="mission-list">
+                    <button class="mission-row" type="button" data-open-mission="remove-personal-info">
+                      <span class="mission-row-icon is-active" aria-hidden="true">
+                        <svg viewBox="0 0 20 20">
+                          <circle cx="9" cy="9" r="5" />
+                          <path d="m13 13 3.5 3.5" />
+                        </svg>
+                      </span>
+                      <span class="mission-row-main">
+                        <strong>Remove my personal information</strong>
+                        <small>I found a likely match and need one detail before I continue.</small>
+                      </span>
+                      <span class="mission-row-meta">
+                        <small>Needs you</small>
+                        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6" /></svg>
+                      </span>
+                    </button>
+                    <button class="mission-row" type="button" data-open-mission="broker-opt-out">
+                      <span class="mission-row-icon" aria-hidden="true">
+                        <svg viewBox="0 0 20 20">
+                          <path d="M10 3.5 16 6v4.5c0 3.4-2.5 5.3-6 6.5-3.5-1.2-6-3.1-6-6.5V6Z" />
+                          <path d="m7.25 10.25 1.65 1.65 3.8-4" />
+                        </svg>
+                      </span>
+                      <span class="mission-row-main">
+                        <strong>Opt out of data brokers</strong>
+                        <small>The safety check passed with no conflicts.</small>
+                      </span>
+                      <span class="mission-row-meta">
+                        <small>Ready</small>
+                        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6" /></svg>
+                      </span>
+                    </button>
+                    <button class="mission-row" type="button" data-open-mission="address-check">
+                      <span class="mission-row-icon" aria-hidden="true">
+                        <svg viewBox="0 0 20 20">
+                          <path d="M10 17s5-4.2 5-8.2a5 5 0 0 0-10 0C5 12.8 10 17 10 17Z" />
+                          <circle cx="10" cy="8.75" r="1.5" />
+                        </svg>
+                      </span>
+                      <span class="mission-row-main">
+                        <strong>Check my exposed address</strong>
+                        <small>Seven public listings were reviewed.</small>
+                      </span>
+                      <span class="mission-row-meta">
+                        <small>Finished</small>
+                        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6" /></svg>
+                      </span>
+                    </button>
+                  </div>
+                </section>
+              </div>
+            </div>
+
+            <section class="home-panel secondary-panel" id="activity-panel" data-home-panel="activity" hidden aria-labelledby="activity-title">
+              <div class="secondary-panel-inner">
+                <header class="secondary-panel-header">
+                  <div>
+                    <p class="eyebrow">A clear record</p>
+                    <h2 id="activity-title">Activity</h2>
+                    <p>See what the agent did, what it is waiting on, and what changed.</p>
+                  </div>
+                  <button class="quiet-button" type="button" data-home-panel-target="start">Back home</button>
+                </header>
+                <div class="activity-history-list">
+                  <button type="button" data-open-mission="remove-personal-info">
+                    <span class="history-date">Today</span>
+                    <span class="history-main">
+                      <strong>Remove my personal information</strong>
+                      <small>Waiting for you to confirm one location.</small>
+                    </span>
+                    <span class="history-state is-waiting">Needs you</span>
+                  </button>
+                  <button type="button" data-open-mission="broker-opt-out">
+                    <span class="history-date">Today</span>
+                    <span class="history-main">
+                      <strong>Opt out of data brokers</strong>
+                      <small>Safe plan prepared for 42 linked records.</small>
+                    </span>
+                    <span class="history-state">Ready</span>
+                  </button>
+                  <button type="button" data-open-mission="address-check">
+                    <span class="history-date">Yesterday</span>
+                    <span class="history-main">
+                      <strong>Check my exposed address</strong>
+                      <small>Seven public listings reviewed and saved.</small>
+                    </span>
+                    <span class="history-state">Finished</span>
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section
+              class="home-panel secondary-panel"
+              id="monitored-panel"
+              data-home-panel="monitored"
+              hidden
+              aria-labelledby="monitored-title"
+            >
+              <div class="secondary-panel-inner">
+                <header class="secondary-panel-header">
+                  <div>
+                    <p class="eyebrow">The information I watch for</p>
+                    <h2 id="monitored-title">Monitored information</h2>
+                    <p>Names, emails, and locations that help the agent recognize your records.</p>
+                  </div>
+                  <button class="quiet-button" type="button" data-home-panel-target="start">Back home</button>
+                </header>
+                <div class="identity-card">
+                  <div class="identity-avatar" aria-hidden="true">JQ</div>
+                  <div class="identity-card-copy">
+                    <strong>Jane Q Synthetic</strong>
+                    <span>Primary identity</span>
+                    <small>Nashville, Tennessee · customer 4471</small>
+                  </div>
+                  <button class="quiet-button" type="button" data-edit-identity>Edit</button>
+                </div>
+                <div class="identity-card">
+                  <div class="identity-avatar identity-avatar-email" aria-hidden="true">@</div>
+                  <div class="identity-card-copy">
+                    <strong>jane.q@example.test</strong>
+                    <span>Monitored email</span>
+                    <small>Used only inside this demo fixture</small>
+                  </div>
+                  <button class="quiet-button" type="button" data-edit-identity>Edit</button>
+                </div>
+                <button class="add-identity-card" id="add-identity" type="button">
+                  <span aria-hidden="true">+</span>
+                  <span>
+                    <strong>Add information to watch</strong>
+                    <small>Add another name, email, phone number, or location.</small>
+                  </span>
+                </button>
+              </div>
+            </section>
+          </section>
+
+          <section class="view agent-view" id="agent-view" aria-labelledby="mission-title" hidden>
+            <div class="agent-shell">
+              <header class="mission-header">
+                <div class="mission-heading">
+                  <button class="icon-button mission-back" type="button" data-go-home aria-label="Back to home">
+                    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12.5 4-6 6 6 6" /></svg>
+                  </button>
+                  <div>
+                    <h2 id="mission-title">Remove my personal information</h2>
+                    <p id="mission-status" role="status" aria-live="polite">
+                      I found a likely match and need one detail.
+                    </p>
+                  </div>
+                </div>
+                <button class="quiet-button mission-details-button" type="button" data-open-details>
+                  What I found
+                </button>
+              </header>
+
+              <div class="conversation-scroll" id="conversation-scroll">
+                <div class="conversation-thread" id="conversation-thread">
+                  <section class="mission-progress" id="mission-progress" aria-label="Mission progress">
+                    <div class="compact-presence">
+                      <pre
+                        class="ascii-presence ascii-presence-agent"
+                        id="agent-ascii"
+                        role="img"
+                        aria-label="The agent is thinking"
+                      ></pre>
+                    </div>
+                    <div class="progress-copy">
+                      <div class="progress-heading">
+                        <strong id="progress-title">Getting ready</strong>
+                        <span id="run-timer">00:00</span>
+                      </div>
+                      <p id="progress-detail">Understanding what you want me to find and remove.</p>
+                      <div
+                        class="progress-track"
+                        id="progress-track"
+                        role="progressbar"
+                        aria-label="Mission progress"
+                        aria-valuemin="0"
+                        aria-valuemax="100"
+                        aria-valuenow="8"
+                      >
+                        <span id="progress-fill"></span>
+                      </div>
+                    </div>
+                    <button class="pause-button" id="pause-run" type="button">
+                      <svg viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M7 5v10M13 5v10" />
+                      </svg>
+                      <span>Pause</span>
+                    </button>
+                  </section>
+
+                  <article class="message message-user">
+                    <div class="message-bubble" id="user-mission-copy">Find and remove my personal information.</div>
+                  </article>
+
+                  <article class="message message-agent">
+                    <div class="agent-message-mark" aria-hidden="true">[br]</div>
+                    <div class="message-content agent-prose">
+                      <p>
+                        I’ll look across likely public records and connected data sources, match what belongs to you, and handle
+                        the changes you already allow.
+                      </p>
+                      <p>
+                        If I find something that could belong to someone else, or a change outside your permission, I’ll stop and
+                        ask.
+                      </p>
+                    </div>
+                  </article>
+
+                  <section class="activity-card" aria-labelledby="activity-card-title">
+                    <button class="activity-card-heading" id="activity-toggle" type="button" aria-expanded="false">
+                      <span>
+                        <span class="eyebrow">Live progress</span>
+                        <strong id="activity-card-title">What I’m doing</strong>
+                      </span>
+                      <span class="activity-summary" id="activity-summary">Understanding your request</span>
+                      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" /></svg>
+                    </button>
+                    <div class="activity-card-body" id="activity-body" hidden>
+                      <ol class="run-steps" id="activity-list">
+                        <li class="run-step is-active" data-run-step="understand">
+                          <span class="run-step-indicator" aria-hidden="true"></span>
+                          <span>
+                            <strong>Understand your request</strong>
+                            <small>Deciding what to look for and what counts as a match.</small>
+                          </span>
+                          <em>Working</em>
+                        </li>
+                        <li class="run-step" data-run-step="search">
+                          <span class="run-step-indicator" aria-hidden="true"></span>
+                          <span>
+                            <strong>Search in parallel</strong>
+                            <small>People-search sites, data brokers, public records, and linked accounts.</small>
+                          </span>
+                          <em>Waiting</em>
+                        </li>
+                        <li class="run-step" data-run-step="check">
+                          <span class="run-step-indicator" aria-hidden="true"></span>
+                          <span>
+                            <strong>Check what is safe to change</strong>
+                            <small>Test the full plan in a disposable copy before anything is approved.</small>
+                          </span>
+                          <em>Waiting</em>
+                        </li>
+                        <li class="run-step" data-run-step="act">
+                          <span class="run-step-indicator" aria-hidden="true"></span>
+                          <span>
+                            <strong>Carry out allowed changes</strong>
+                            <small>Remove, anonymize, or disconnect each record according to your rules.</small>
+                          </span>
+                          <em>Waiting</em>
+                        </li>
+                      </ol>
+                      <div class="parallel-agents" id="subagent-list" hidden>
+                        <div class="parallel-heading">
+                          <strong>Working in parallel</strong>
+                          <span id="subagent-count">0 of 4 active</span>
+                        </div>
+                        <div class="parallel-grid">
+                          <div data-agent-key="identity"><span></span><strong>Match your identity</strong><small>Ready</small></div>
+                          <div data-agent-key="brokers"><span></span><strong>Check data brokers</strong><small>Ready</small></div>
+                          <div data-agent-key="records"><span></span><strong>Check public records</strong><small>Ready</small></div>
+                          <div data-agent-key="links"><span></span><strong>Trace linked accounts</strong><small>Ready</small></div>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section class="question-card" id="identity-question" hidden aria-labelledby="identity-question-title">
+                    <div class="question-icon" aria-hidden="true">?</div>
+                    <div class="question-content">
+                      <p class="eyebrow">I need one detail</p>
+                      <h3 id="identity-question-title">Did you live in Nashville, Tennessee?</h3>
+                      <p>
+                        I found two people with similar records. This answer keeps the search focused on the right person.
+                      </p>
+                      <div class="question-actions">
+                        <button class="answer-button answer-primary" type="button" data-identity-answer="yes">
+                          Yes, that’s me
+                        </button>
+                        <button class="answer-button" type="button" data-identity-answer="no">
+                          No, not me
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+
+                  <article class="message message-agent completion-message" id="completion-message" hidden>
+                    <div class="agent-message-mark is-complete" aria-hidden="true">✓</div>
+                    <div class="message-content agent-prose">
+                      <p class="eyebrow">Finished</p>
+                      <h3>Your safe plan is ready.</h3>
+                      <p>
+                        I accounted for all 42 linked records. The plan removes 9 records, anonymizes 24 records that must be kept,
+                        and disconnects 9 relationships. The safety check found 0 conflicts.
+                      </p>
+                      <div class="message-actions">
+                        <button class="answer-button answer-primary" type="button" data-open-details>Review what I found</button>
+                        <button class="answer-button" type="button" data-go-home>Return home</button>
+                      </div>
+                    </div>
+                  </article>
+
+                  <div class="sr-only" id="run-announcement" aria-live="polite" aria-atomic="true"></div>
+                </div>
+              </div>
+
+              <form class="agent-composer" id="agent-composer">
+                <label class="sr-only" for="agent-prompt">Ask the agent a question or change the plan</label>
+                <textarea id="agent-prompt" rows="1" placeholder="Ask a question or change the plan"></textarea>
+                <div class="agent-composer-footer">
+                  <span id="composer-status">
+                    <span class="status-dot is-ready" aria-hidden="true"></span>
+                    The agent will keep working unless it needs you.
+                  </span>
+                  <button class="send-button" type="submit" aria-label="Send message">
+                    <svg viewBox="0 0 20 20" aria-hidden="true">
+                      <path d="M10 15.5v-11M5.5 9 10 4.5 14.5 9" />
+                    </svg>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </section>
+        </main>
+      </div>
+
+      <button class="details-backdrop" id="details-backdrop" type="button" aria-label="Close details"></button>
+      <aside class="details-drawer" id="details-drawer" aria-hidden="true" aria-labelledby="details-title" inert>
+        <header class="drawer-header">
+          <div>
+            <p class="eyebrow">Current request</p>
+            <h2 id="details-title">What the agent found</h2>
+          </div>
+          <button class="icon-button" id="details-close" type="button" aria-label="Close details">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg>
+          </button>
+        </header>
+        <div class="drawer-scroll">
+          <section class="drawer-section identity-match" aria-labelledby="match-title">
+            <div class="drawer-section-heading">
+              <div>
+                <p class="eyebrow">Best match</p>
+                <h3 id="match-title">We think this is you</h3>
+              </div>
+              <span class="confidence-badge">92% match</span>
+            </div>
+            <div class="match-person">
+              <div class="identity-avatar" aria-hidden="true">JQ</div>
+              <div>
+                <strong>Jane Q Synthetic</strong>
+                <span>Nashville, Tennessee</span>
+                <small>Demo identity · customer 4471</small>
+              </div>
+            </div>
+          </section>
+
+          <section class="drawer-section" aria-labelledby="evidence-title">
+            <div class="drawer-section-heading">
+              <div>
+                <p class="eyebrow">Sources</p>
+                <h3 id="evidence-title">What I found</h3>
+              </div>
+              <span>Confidence</span>
+            </div>
+            <div class="evidence-list" id="evidence-list">
+              <article>
+                <span class="source-mark" aria-hidden="true">P</span>
+                <div><strong>People-search listing</strong><small>Address and phone</small></div>
+                <em>72%</em>
+              </article>
+              <article>
+                <span class="source-mark" aria-hidden="true">A</span>
+                <div><strong>Address broker record</strong><small>Earlier residence</small></div>
+                <em>68%</em>
+              </article>
+              <article class="is-pending">
+                <span class="source-mark" aria-hidden="true">+</span>
+                <div><strong>Five more source groups</strong><small>Waiting for identity confirmation</small></div>
+                <em>Queued</em>
+              </article>
+            </div>
+          </section>
+
+          <section class="drawer-section impact-summary" id="impact-summary" aria-labelledby="impact-title">
+            <div class="drawer-section-heading">
+              <div>
+                <p class="eyebrow">Safe removal plan</p>
+                <h3 id="impact-title">What would change</h3>
+              </div>
+              <span id="impact-state">Not started</span>
+            </div>
+            <p id="impact-copy">I’ll test the complete plan in a disposable copy before any permitted change.</p>
+            <dl class="impact-grid">
+              <div><dt>Found</dt><dd>42 records</dd></div>
+              <div><dt>Remove</dt><dd>9 records</dd></div>
+              <div><dt>Anonymize</dt><dd>24 records</dd></div>
+              <div><dt>Disconnect</dt><dd>9 links</dd></div>
+            </dl>
+            <div class="safety-result">
+              <span aria-hidden="true">✓</span>
+              <p><strong>Safety check</strong><small>0 conflicts after rehearsal</small></p>
+            </div>
+            <p class="technical-note">
+              Rollback point preserved. Scope clamp: customer 4471 only. Required order records remain for 7 years with personal
+              fields anonymized.
+            </p>
+          </section>
+
+          <section class="drawer-section scope-section" id="scope-policy" aria-labelledby="scope-title">
+            <div class="drawer-section-heading">
+              <div>
+                <p class="eyebrow">Your boundaries</p>
+                <h3 id="scope-title">What I’m allowed to do</h3>
+              </div>
+              <span class="scope-state"><span aria-hidden="true"></span> Active</span>
+            </div>
+            <label>
+              <input type="checkbox" checked data-scope="discover" />
+              <span><strong>Search for likely records</strong><small>Public and connected sources</small></span>
+            </label>
+            <label>
+              <input type="checkbox" checked data-scope="request" />
+              <span><strong>Send routine opt-out requests</strong><small>Only for confirmed matches</small></span>
+            </label>
+            <label>
+              <input type="checkbox" checked data-scope="erase" />
+              <span><strong>Carry out a rehearsed removal plan</strong><small>Only after the safety check passes</small></span>
+            </label>
+            <p>Anything else comes back to you for a decision.</p>
+          </section>
+
+          <details class="drawer-details" id="technical-details">
+            <summary>
+              <span>
+                <span class="eyebrow">For review</span>
+                <strong>Technical details</strong>
+              </span>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" /></svg>
+            </summary>
+            <div class="drawer-details-body">
+              <p>1,248 raw tool rows compacted into seven verified steps. Full output stays attached to this run.</p>
+              <ol class="tool-list">
+                <li><code>inspect_schema</code><span>Map related tables</span></li>
+                <li><code>list_foreign_keys</code><span>Trace linked records</span></li>
+                <li><code>get_retention_policies</code><span>Check what must be kept</span></li>
+                <li><code>find_subject_data</code><span>Find records for this person</span></li>
+                <li><code>snapshot_to_shadow</code><span>Create a rollback point</span></li>
+                <li><code>rehearse_deletion</code><span>Test the complete plan</span></li>
+                <li><code>execute_deletion</code><span>Apply the approved plan</span></li>
+              </ol>
+            </div>
+          </details>
+
+          <details class="drawer-details" id="audit-history">
+            <summary>
+              <span>
+                <span class="eyebrow">Traceable by design</span>
+                <strong>Activity history</strong>
+              </span>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" /></svg>
+            </summary>
+            <div class="drawer-details-body">
+              <ol class="audit-list" id="audit-list">
+                <li><time>10:32:08</time><span>Started</span><strong>Request understood</strong></li>
+                <li><time>10:32:09</time><span>Paused</span><strong>Waiting for Nashville confirmation</strong></li>
+              </ol>
+            </div>
+          </details>
+        </div>
+      </aside>
+    </div>
+
+    <dialog class="product-dialog" id="connector-dialog">
+      <form method="dialog" class="dialog-card" id="connector-form">
+        <header class="dialog-header">
+          <div>
+            <p class="eyebrow">Private connection</p>
+            <h2>Connections</h2>
+          </div>
+          <button class="icon-button" value="cancel" aria-label="Close connections">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg>
+          </button>
+        </header>
+        <p class="dialog-intro">Connect the agent to the customer-data harness. Uses the models from your <code>.env</code>.</p>
+        <label>
+          <span>Harness URL</span>
+          <input id="connector-url" type="url" value="http://localhost:8080/mcp" />
+        </label>
+        <label>
+          <span>Access token</span>
+          <input id="connector-token" type="password" placeholder="Paste MCP_AUTH_TOKEN" autocomplete="off" />
+        </label>
+        <label>
+          <span>Model</span>
+          <input id="connector-model" type="text" value="unorouter/gpt-oss-120b:free" readonly />
+          <small style="color:var(--muted);font-size:11px">From <code>MODEL_NAMES</code> — rotates on 401/429. Also: glm-5.3-flash, gemini-2.0-flash, z-ai/glm-5.3</small>
+        </label>
+        <div class="connection-result" id="connector-result" role="status" aria-live="polite">
+          <span aria-hidden="true"></span>
+          Checking harness health…
+        </div>
+        <div class="dialog-actions">
+          <button class="answer-button" value="cancel">Close</button>
+          <button class="answer-button answer-primary" id="connector-test" type="button">Test connection</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="product-dialog" id="identity-dialog">
+      <form method="dialog" class="dialog-card" id="identity-form">
+        <header class="dialog-header">
+          <div>
+            <p class="eyebrow">Help the agent recognize you</p>
+            <h2>Add information to watch</h2>
+          </div>
+          <button class="icon-button" value="cancel" aria-label="Close">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg>
+          </button>
+        </header>
+        <p class="dialog-intro">Add only what will help separate your records from someone else’s.</p>
+        <label>
+          <span>Type</span>
+          <select id="identity-type">
+            <option>Name</option>
+            <option>Email</option>
+            <option>Phone number</option>
+            <option>Location</option>
+          </select>
+        </label>
+        <label>
+          <span>Information</span>
+          <input id="identity-value" type="text" placeholder="Enter a name, email, phone number, or location" />
+        </label>
+        <div class="dialog-actions">
+          <button class="answer-button" value="cancel">Cancel</button>
+          <button class="answer-button answer-primary" id="identity-save" type="submit" value="default">Save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="./app.js" defer></script>
+  </body>
+</html>
