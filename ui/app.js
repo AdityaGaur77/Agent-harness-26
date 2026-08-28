@@ -625,6 +625,33 @@ function renderEvidence(limit = 2, complete = false) {
   }
 }
 
+function renderRealEvidence(tablesWithData) {
+  evidenceList.textContent = "";
+  if (!tablesWithData || tablesWithData.length === 0) {
+    const empty = document.createElement("article");
+    empty.innerHTML = '<span class="source-mark" aria-hidden="true">—</span><div><strong>No linked rows found</strong><small>Real data from Postgres</small></div><em>0</em>';
+    evidenceList.append(empty);
+    return;
+  }
+  tablesWithData.forEach((row) => {
+    const article = document.createElement("article");
+    const mark = document.createElement("span");
+    mark.className = "source-mark";
+    mark.setAttribute("aria-hidden", "true");
+    mark.textContent = (row.table?.[0] || "T").toUpperCase();
+    const copy = document.createElement("div");
+    const name = document.createElement("strong");
+    name.textContent = row.table || "unknown";
+    const detail = document.createElement("small");
+    detail.textContent = row.discovered_via ? row.discovered_via.slice(0, 48) : `${row.rows} rows`;
+    copy.append(name, detail);
+    const confidence = document.createElement("em");
+    confidence.textContent = `${row.rows}`;
+    article.append(mark, copy, confidence);
+    evidenceList.append(article);
+  });
+}
+
 function appendAudit(type, message) {
   const item = document.createElement("li");
   const time = document.createElement("time");
@@ -719,7 +746,7 @@ function resetMission(options = {}) {
   clearDynamicMessages();
   resetSteps();
   resetSubagents();
-  renderEvidence(2, false);
+  renderRealEvidence([]);
   impactState.textContent = "Not started";
   impactCopy.textContent = "I test the plan in a safe copy before I change anything.";
   auditList.innerHTML =
@@ -825,12 +852,10 @@ async function continueAutonomousRun() {
       // Try real schema/tools
       const schema = await mcpTool(harnessUrl, harnessToken, "inspect_schema", {});
       const tables = schema?.tables?.length || 7;
-      renderEvidence(Math.min(4, evidenceFixture.length), false);
       appendAudit("Tool", `inspect_schema mapped ${tables} related tables` + (lookup ? ` — matched ${match.full_name}` : ""));
       if (!(await waitFor(440, generation))) return;
       setSubagentState("brokers", "done");
       const fks = await mcpTool(harnessUrl, harnessToken, "list_foreign_keys", {});
-      renderEvidence(6, false);
       appendAudit("Tool", `list_foreign_keys traced ${fks?.foreign_keys?.length || 6} links`);
       if (!(await waitFor(440, generation))) return;
       const subjectData = await mcpTool(harnessUrl, harnessToken, "find_subject_data", { subject_id: sid });
@@ -839,10 +864,10 @@ async function continueAutonomousRun() {
       // Update identity card and evidence with live data
       const idCard = document.querySelector(".identity-card strong");
       if (idCard) idCard.textContent = match.full_name || displayGov;
-      renderEvidence(7, true);
+      renderRealEvidence(tablesWithData);
       setSubagentState("records", "done");
       setSubagentState("links", "done");
-      renderEvidence(7, true);
+      renderRealEvidence(tablesWithData);
       setStep("search", "complete");
       setStep("check", "active");
       setRunState("rehearsing");
