@@ -14,17 +14,37 @@ import {
   type Queryable,
 } from "../db.js";
 import { fail, ok } from "./shared.js";
+import { grantExecutionToken } from "../rehearsal-registry.js";
 import {
   buildSubjectScope,
   subjectScopePredicate,
   type SubjectScope,
 } from "../subject-scope.js";
 
+/**
+ * Some harnesses hand structured tool arguments over as JSON strings. That is
+ * not a plan the caller got wrong, so parse it rather than rejecting it — a
+ * rejection here is worse than it looks: observed in a real run, the model
+ * responded to the validation error by falling back to a simpler, unrehearsed
+ * plan and executing that instead.
+ */
+const jsonObjectish = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess((value) => {
+    if (typeof value !== "string") return value;
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }, schema);
+
 export const deletionStepSchema = z.object({
   table: z.string().min(1),
   action: z.enum(["hard_delete", "anonymise"]),
   where: z.string().min(1).optional(),
-  set: z.record(z.string(), z.union([z.string(), z.number(), z.null()])).optional(),
+  set: jsonObjectish(
+    z.record(z.string(), z.union([z.string(), z.number(), z.null()])),
+  ).optional(),
 });
 
 export const deletionPlanSchema = z.object({
@@ -365,10 +385,22 @@ export function registerRehearseTool(server: McpServer): void {
             commit: false,
             abortOnConstraints: false,
           });
+          // A clean rehearsal is the only thing that authorises a production
+          // write, so it is also the only thing that mints the token
+          // execute_deletion demands. An illegal or blocked plan gets none,
+          // and no amount of retrying can conjure one.
+          const clean =
+            report.summary.would_be_illegal === false &&
+            report.constraints_blocked.length === 0;
+
           return ok({
             rehearsal: true,
             production_touched: false,
             ...report,
+            execution_token: clean ? grantExecutionToken(plan) : null,
+            execution_token_note: clean
+              ? "Pass this to execute_deletion together with THIS exact plan. Single use, valid 30 minutes."
+              : "No token issued: this plan is not execution-ready. Revise it and rehearse again.",
           });
         } finally {
           client.release();
