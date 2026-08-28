@@ -1,6 +1,8 @@
 const $ = (selector, scope = document) => scope.querySelector(selector);
 const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
 
+const EXA_API_KEY = "c6e0f170-8d73-4029-b3ed-7c7e30bd80ba";
+
 const body = document.body;
 const homeView = $("#home-view");
 const agentView = $("#agent-view");
@@ -135,6 +137,7 @@ const subagentPlan = [
   { key: "brokers", label: "Check data brokers" },
   { key: "records", label: "Check public records" },
   { key: "links", label: "Trace linked accounts" },
+  { key: "web", label: "Search the web" },
 ];
 
 const missionPresets = {
@@ -229,6 +232,31 @@ async function mcpTool(url, token, name, args) {
   const c = r?.result?.content?.[0]?.text || r?.raw || "";
   try { return JSON.parse(c); } catch { return { _raw: c, _error: r?.error }; }
 }
+
+async function exaSearch(query, options = {}) {
+  try {
+    const res = await fetch("https://api.exa.ai/search", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": EXA_API_KEY
+      },
+      body: JSON.stringify({
+        query,
+        numResults: options.numResults ?? 10,
+        type: options.type ?? "neural",
+        includeDomains: options.includeDomains,
+        excludeDomains: options.excludeDomains,
+        useAutoprompt: true
+      })
+    });
+    if (!res.ok) throw new Error(`Exa error: ${res.status}`);
+    return await res.json();
+  } catch (e) {
+    return { error: e.message, results: [] };
+  }
+}
+
 async function updateHarnessStatus() {
   const urlEl = document.getElementById("connector-url");
   const tokenEl = document.getElementById("connector-token");
@@ -837,6 +865,23 @@ async function continueAutonomousRun() {
   // Attempt live harness if configured — otherwise demo
   const harnessUrl = resolveMcpUrl();
   const harnessToken = resolveMcpToken();
+
+  // Always run web search via Exa to find exposed info on the public web
+  setSubagentState("web", "active");
+  const webQuery = `personal information "${displayGov}" address phone email site:peoplefinders.com OR site:whitepages.com OR site:spokeo.com OR site:beenverified.com OR site:truthfinder.com OR site:intelius.com OR site:fastpeoplesearch.com`;
+  const webResults = await exaSearch(webQuery, { numResults: 10 });
+  setSubagentState("web", "done");
+  if (webResults.results && webResults.results.length > 0) {
+    renderRealEvidence(webResults.results.map((r, i) => ({
+      table: `web:${new URL(r.url).hostname}`,
+      rows: 1,
+      discovered_via: r.title || r.url
+    })));
+    appendAudit("Web search", `Exa found ${webResults.results.length} public listings for ${displayGov}`);
+  } else {
+    appendAudit("Web search", `Exa found no public listings for ${displayGov}`);
+  }
+
   const modelEl = document.getElementById("connector-model");
   const modelName = modelEl?.value || localStorage.getItem("blast_model") || "unorouter/gpt-oss-120b:free";
   let liveSuccess = false;
