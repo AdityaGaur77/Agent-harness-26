@@ -65,6 +65,33 @@ npm run smoke                                  # third shell, same env vars
 - [ ] UI (Aarav)
 - [ ] Live TrueForge integration test (connector registration, gate firing in a real session)
 
+## Deploy
+
+### UI — Vercel (static)
+`ui/` is static HTML/CSS/JS. `vercel.json` sets `outputDirectory: ui`, no build.
+
+```bash
+vercel --prod  # or import AdityaGaur77/Agent-harness-26 in Vercel dashboard
+```
+Set Vercel env `MCP_URL=https://blast-mcp.fly.dev/mcp` and `MCP_AUTH_TOKEN` (same as `.env`). UI auto-detects Fly host when not on localhost, or use Connections dialog to override.
+
+### Backend — Fly.io (MCP + Postgres)
+MCP server is in `packages/mcp-subject-data/`. `fly.toml` deploys it with healthcheck at `/healthz`.
+
+```bash
+fly launch --no-deploy  # first time, app blast-mcp, region iad
+fly postgres create --name blast-pg --region iad
+fly postgres attach blast-pg --app blast-mcp  # sets DATABASE_URL
+fly secrets set MCP_AUTH_TOKEN=$(grep MCP_AUTH_TOKEN .env | cut -d= -f2) SHADOW_DB_NAME=blast_shadow
+fly deploy --config packages/mcp-subject-data/fly.toml
+fly status
+curl -s https://blast-mcp.fly.dev/healthz | grep ok
+```
+
+Local dev still works: `docker compose up -d --build` then `MCP_URL=http://localhost:8080/mcp` in UI.
+
+UI no longer shows synthetic fallback. If harness unreachable, it shows `Harness unreachable` with Retry and Open connections, using real Postgres only.
+
 ## AI-use disclosure
 
 This project was built with AI coding assistants as permitted by hackathon rule 12. Each owner reviewed and understands their area before merge.

@@ -1,0 +1,10 @@
+{
+  "name": "blast-radius-ui",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Agent-first ASCII workspace for the Blast Radius privacy harness.",
+  "scripts": {
+    "dev": "python3 -m http.server 4173",
+    "check": "node scripts/check.mjs"
+  }
+}
