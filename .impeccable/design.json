@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-28T12:00:00Z",
+  "title": "Design System: Blast Radius",
+  "extensions": {
+    "colorMeta": {
+      "mineral-canvas": { "role": "neutral", "displayName": "Mineral Canvas", "canonical": "oklch(0.975 0.006 86)", "tonalRamp": ["oklch(0.15 0.006 86)", "oklch(0.27 0.006 86)", "oklch(0.39 0.006 86)", "oklch(0.51 0.006 86)", "oklch(0.63 0.006 86)", "oklch(0.75 0.006 86)", "oklch(0.87 0.006 86)", "oklch(0.975 0.006 86)"] },
+      "paper-surface": { "role": "neutral", "displayName": "Paper Surface", "canonical": "oklch(0.992 0.003 86)", "tonalRamp": ["oklch(0.15 0.003 86)", "oklch(0.27 0.003 86)", "oklch(0.39 0.003 86)", "oklch(0.51 0.003 86)", "oklch(0.63 0.003 86)", "oklch(0.75 0.003 86)", "oklch(0.87 0.003 86)", "oklch(0.992 0.003 86)"] },
+      "carbon-ink": { "role": "neutral", "displayName": "Carbon Ink", "canonical": "oklch(0.22 0.012 264)", "tonalRamp": ["oklch(0.15 0.012 264)", "oklch(0.27 0.012 264)", "oklch(0.39 0.012 264)", "oklch(0.51 0.012 264)", "oklch(0.63 0.012 264)", "oklch(0.75 0.012 264)", "oklch(0.87 0.012 264)", "oklch(0.95 0.012 264)"] },
+      "graphite-muted": { "role": "neutral", "displayName": "Graphite Muted", "canonical": "oklch(0.52 0.016 264)", "tonalRamp": ["oklch(0.15 0.016 264)", "oklch(0.27 0.016 264)", "oklch(0.39 0.016 264)", "oklch(0.51 0.016 264)", "oklch(0.63 0.016 264)", "oklch(0.75 0.016 264)", "oklch(0.87 0.016 264)", "oklch(0.95 0.016 264)"] },
+      "quiet-line": { "role": "neutral", "displayName": "Quiet Line", "canonical": "oklch(0.865 0.01 86)", "tonalRamp": ["oklch(0.15 0.01 86)", "oklch(0.27 0.01 86)", "oklch(0.39 0.01 86)", "oklch(0.51 0.01 86)", "oklch(0.63 0.01 86)", "oklch(0.75 0.01 86)", "oklch(0.865 0.01 86)", "oklch(0.95 0.01 86)"] },
+      "cobalt-signal": { "role": "primary", "displayName": "Cobalt Signal", "canonical": "oklch(0.48 0.19 264)", "tonalRamp": ["oklch(0.15 0.08 264)", "oklch(0.27 0.12 264)", "oklch(0.39 0.17 264)", "oklch(0.48 0.19 264)", "oklch(0.59 0.16 264)", "oklch(0.71 0.12 264)", "oklch(0.83 0.07 264)", "oklch(0.94 0.035 264)"] },
+      "cobalt-soft": { "role": "primary", "displayName": "Cobalt Soft", "canonical": "oklch(0.94 0.035 264)", "tonalRamp": ["oklch(0.15 0.035 264)", "oklch(0.27 0.035 264)", "oklch(0.39 0.035 264)", "oklch(0.51 0.035 264)", "oklch(0.63 0.035 264)", "oklch(0.75 0.035 264)", "oklch(0.87 0.035 264)", "oklch(0.94 0.035 264)"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Agent Declaration", "purpose": "Major agent messages and empty-state prompts." },
+      "body": { "displayName": "Conversation", "purpose": "Human and agent language." },
+      "label": { "displayName": "Product Chrome", "purpose": "Navigation, controls, and inspector labels." },
+      "mono": { "displayName": "Evidence", "purpose": "ASCII, timestamps, IDs, and tool output." }
+    },
+    "shadows": [
+      { "name": "composer-lift", "value": "0 12px 36px rgba(24, 25, 30, 0.08)", "purpose": "Persistent composer only." }
+    ],
+    "motion": [
+      { "name": "ease-out", "value": "cubic-bezier(0.23, 1, 0.32, 1)", "purpose": "160–280ms control and state transitions." },
+      { "name": "ease-in-out", "value": "cubic-bezier(0.77, 0, 0.175, 1)", "purpose": "ASCII state morphs." },
+      { "name": "ease-drawer", "value": "cubic-bezier(0.32, 0.72, 0, 1)", "purpose": "Mobile rail and inspector sheets." }
+    ],
+    "breakpoints": [
+      { "name": "compact", "value": "760px" },
+      { "name": "medium", "value": "1120px" },
+      { "name": "wide", "value": "1440px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Rare cobalt action for starting or continuing an agent mission.",
+      "html": "<button class=\"ds-btn-primary\">Start search</button>",
+      "css": ".ds-btn-primary{background:oklch(0.48 0.19 264);color:oklch(0.992 0.003 86);border:0;border-radius:6px;padding:11px 15px;font:600 13px/1.2 'Avenir Next',sans-serif;transition:background 160ms cubic-bezier(.23,1,.32,1),transform 160ms cubic-bezier(.23,1,.32,1)}.ds-btn-primary:hover{background:oklch(0.43 0.19 264)}.ds-btn-primary:active{transform:scale(.98)}.ds-btn-primary:focus-visible{outline:2px solid oklch(0.48 0.19 264);outline-offset:3px}"
+    },
+    {
+      "name": "Mission Composer",
+      "kind": "input",
+      "refersTo": "composer",
+      "description": "Merriweather prompt field with one contained send action.",
+      "html": "<div class=\"ds-composer\"><span>Find and remove my personal information.</span><button aria-label=\"Send\">↑</button></div>",
+      "css": ".ds-composer{display:flex;align-items:center;gap:16px;background:oklch(0.992 0.003 86);color:oklch(0.22 0.012 264);border:1px solid oklch(0.865 0.01 86);border-radius:10px;padding:14px 14px 14px 18px;font:400 16px/1.5 Merriweather,Georgia,serif;box-shadow:0 12px 36px rgba(24,25,30,.08)}.ds-composer span{flex:1}.ds-composer button{width:36px;height:36px;border:0;border-radius:6px;background:oklch(0.48 0.19 264);color:oklch(0.992 0.003 86)}.ds-composer button:focus-visible{outline:2px solid oklch(0.48 0.19 264);outline-offset:3px}"
+    },
+    {
+      "name": "Selected Mission Row",
+      "kind": "nav",
+      "description": "Open row with a pale cobalt wash and internal selection marker.",
+      "html": "<button class=\"ds-mission\"><strong>Remove my personal info</strong><small>Searching the open web</small></button>",
+      "css": ".ds-mission{position:relative;width:100%;padding:14px 16px 14px 22px;border:0;background:oklch(0.94 0.035 264);color:oklch(0.22 0.012 264);text-align:left}.ds-mission:before{content:'';position:absolute;left:0;top:10px;bottom:10px;width:2px;background:oklch(0.48 0.19 264)}.ds-mission strong,.ds-mission small{display:block}.ds-mission strong{font:600 13px/1.4 'Avenir Next',sans-serif}.ds-mission small{margin-top:3px;color:oklch(0.52 0.016 264);font:400 12px/1.4 'Avenir Next',sans-serif}.ds-mission:focus-visible{outline:2px solid oklch(0.48 0.19 264);outline-offset:-2px}"
+    },
+    {
+      "name": "Evidence Row",
+      "kind": "custom",
+      "description": "A confidence-bearing source row separated by alignment, not a card.",
+      "html": "<div class=\"ds-evidence\"><div><strong>peoplefinder.example</strong><small>People search</small></div><span>72%</span></div>",
+      "css": ".ds-evidence{display:flex;align-items:start;justify-content:space-between;gap:16px;padding:11px 0;border-bottom:1px solid oklch(0.865 0.01 86);color:oklch(0.22 0.012 264);font:400 12px/1.45 'Avenir Next',sans-serif}.ds-evidence strong,.ds-evidence small{display:block}.ds-evidence small{color:oklch(0.52 0.016 264);margin-top:2px}.ds-evidence span{font-family:SFMono-Regular,Consolas,monospace;color:oklch(0.52 0.016 264)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Private Desk",
+    "overview": "A calm editorial conversation bound to a rigorous evidence desk. ASCII is a state instrument, not decoration.",
+    "keyCharacteristics": ["Three-region product shell", "Merriweather agent voice", "One scarce cobalt signal", "Interruptible state-bound ASCII", "Progressive technical disclosure"],
+    "rules": [
+      { "name": "The One Signal Rule", "body": "Cobalt occupies less than ten percent of a screen.", "section": "colors" },
+      { "name": "The Two Voices Rule", "body": "Merriweather speaks; sans-serif labels; monospace proves.", "section": "typography" },
+      { "name": "The Flat Desk Rule", "body": "Alignment, whitespace, and hairlines precede shadows.", "section": "elevation" }
+    ],
+    "dos": ["Do open directly on the working agent.", "Do keep synthetic and connected data visibly distinct."],
+    "donts": ["Don't use portfolio website framing.", "Don't use multicolored dashboards or unreadable ASCII noise."]
+  }
+}
+
