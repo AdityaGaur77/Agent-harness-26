@@ -79,7 +79,7 @@ const assertions = [
   ["guided preview narrates findings", ["Information found:", "What would be removed after approval:", "Updates ready for review:", "Review complete."].every((value) => js.includes(value))],
   ["guided preview hides its trigger", !html.includes("Find information on Jane Austin") && guidedPreviewBody.includes("GUIDED_PREVIEW.requestLabel") && !guidedPreviewBody.includes("userMissionCopy.textContent = cleanPrompt") && guidedPreviewBody.includes("homePrompt.value = \"\"")],
   ["preview completion copy is dynamic", html.includes('id="completion-title"') && html.includes('id="completion-copy"') && js.includes("completionTitle") && js.includes("completionCopy")],
-  ["preview sources name websites", js.includes("website:") && js.includes('sourceUnit = tablesWithData.some((row) => row.website)') && js.includes("source.website")],
+  ["preview sources name websites", ["PeopleFinders (peoplefinders.com)", "Whitepages (whitepages.com)", "Spokeo (spokeo.com)", "BeenVerified (beenverified.com)"].every((value) => js.includes(value)) && js.includes('sourceUnit = tablesWithData.some((row) => row.website)') && js.includes("source.website")],
   ["source findings identify where they came from", js.includes("Found at") && js.includes("row.website ?") && js.includes("resultDetail")],
   ["source findings get a larger reading area", css.includes("#source-details[open] .evidence-list article") && css.includes("min-height: 82px") && css.includes("font-size: 13px")],
   ["agent status announced", html.includes('role="status"') && html.includes('aria-live="polite"')],
