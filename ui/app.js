@@ -63,7 +63,6 @@ const completionTitle = $("#completion-title");
 const completionCopy = $("#completion-copy");
 
 const VIEW_TRANSITION_MS = 280;
-const ENTRY_STORAGE_KEY = "blast_radius_has_entered";
 const GUIDED_PREVIEW_PHRASE = "find information on jane austin";
 const GUIDED_PREVIEW = {
   name: "Jane Austin",
@@ -890,25 +889,8 @@ function setView(nextView) {
   if (!showAgent) closeDetails();
 }
 
-function hasEnteredAgent() {
-  try {
-    return window.localStorage.getItem(ENTRY_STORAGE_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function rememberAgentEntry() {
-  try {
-    window.localStorage.setItem(ENTRY_STORAGE_KEY, "1");
-  } catch {
-    // Private browsing can deny storage; the transition still works for this visit.
-  }
-}
-
 function enterAgent() {
   if (!enterAgentButton || enterAgentButton.disabled) return;
-  rememberAgentEntry();
   enterAgentButton.disabled = true;
   landingView.classList.add("is-leaving");
   appShell.hidden = false;
@@ -1977,7 +1959,8 @@ renderRealEvidence([]);
 updatePermissionsSummary();
 setRunState("idle");
 setHomePanel("start", { skipView: true });
-setView(hasEnteredAgent() ? "home" : "landing");
-if (hasEnteredAgent()) updateHarnessStatus();
+// Keep the horse animation as the front door on every page load. The handoff
+// into the workspace is intentionally session-local and is never persisted.
+setView("landing");
 // expose gov-name helpers for manual testing
 window.BlastRadius = { resolveGovInput, extractGovNameFromPrompt, mcpTool, updateHarnessStatus, enterAgent, setView, landingHorse };

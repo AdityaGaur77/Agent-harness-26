@@ -44,7 +44,7 @@ const assertions = [
   ["one page heading", (html.match(/<h1\b/g) || []).length === 1],
   ["two-stage product", ['id="landing-view"', 'id="home-view"', 'id="agent-view"', 'data-view="landing"'].every((value) => html.includes(value)) && js.includes("setView") && js.includes("enterAgent")],
   ["first-visit front door", html.includes('id="landing-title"') && html.includes('id="landing-description"') && html.includes('id="enter-agent"') && html.includes("Your personal data")],
-  ["first visit is remembered", js.includes('ENTRY_STORAGE_KEY = "blast_radius_has_entered"') && js.includes("hasEnteredAgent") && js.includes("rememberAgentEntry") && js.includes("localStorage.setItem(ENTRY_STORAGE_KEY")],
+  ["landing is shown on every open", js.includes('setView("landing");') && !js.includes("ENTRY_STORAGE_KEY") && !js.includes("hasEnteredAgent") && !js.includes("rememberAgentEntry")],
   ["landing handoff is considered", js.includes("landingView.classList.add(\"is-leaving\")") && js.includes("appShell.classList.add(\"is-entering-workspace\")") && js.includes("VIEW_TRANSITION_MS = 280") && css.includes("landing-exit")],
   ["prompt-first home", html.indexOf('id="home-prompt"') < html.indexOf('id="recent-missions"') && (html.includes("Tell me what to find") || html.includes("What would you like to find") || html.includes("What should be found or removed"))],
   ["only relevant chat patterns", irrelevantChatFeatures.every((value) => !all.includes(value))],
