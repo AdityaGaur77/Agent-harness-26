@@ -152,11 +152,9 @@ measured, not predicted.
 
 ## Qodo Code Review Evidence
 
-Representative PR with meaningful hackathon code:
-[#14](https://github.com/AdityaGaur77/Agent-harness-26/pull/14). Reviewed by
-Qodo; merge is pending team sign-off, so this link will be replaced with a
-merged PR before submission (`<<MERGED_PR_LINK>>` if #14 itself isn't the
-one that ends up merged).
+Representative merged PR with meaningful hackathon code:
+[#14](https://github.com/AdityaGaur77/Agent-harness-26/pull/14), merged as
+[571a222](https://github.com/AdityaGaur77/Agent-harness-26/commit/571a222aba85bd78f35ba02a5fab3f2c41a6e19f).
 
 What Qodo surfaced and what we changed: one High finding, the README's short
 setup ran `npm run provision` right after editing the Compose `.env`, but
