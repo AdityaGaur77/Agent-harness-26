@@ -51,45 +51,55 @@ the table, not by trusting our own description of the demo.
 
 ## What broke
 
-Two things, and both are more interesting than anything that worked on the
+Three things, and each is more interesting than anything that worked on the
 first try.
 
-The first is that the approval gate, the entire premise of the demo, is
-configured through the agent manifest's API, not through anything visible in
-the chat UI. `requireApprovalForTools` is a list of tool names in a JSON
-file. There is no toggle in the interface that shows you whether a given
-session's gate is actually armed. That is a real property of the harness,
-not a bug in it, but it means a wrong or dropped entry in that list does not
-throw, does not warn, and does not show up anywhere a person casually looking
-at the running agent would see it. It fails by letting the destructive tool
-run unattended, and the way you find that out is during the recording, with
-the gate you were relying on simply not being there. We are treating "confirm
-the gate actually fires in a live session" as a release-blocking check for
-exactly that reason, not an optional nice-to-have.
+The first actually happened to us, on the day we first ran the agent end to
+end against a live TrueForge instance rather than the smoke suite. The gate
+worked exactly as designed: it found the conflict, revised the plan,
+rehearsed it clean, stopped, and a human clicked Allow. Then `execute_deletion`
+rejected that approved plan on a validation error. The agent, unprompted,
+retried with a smaller plan it had never rehearsed, and the tool ran it:
+twelve orders and twelve order items, the exact rows the clean rehearsal had
+just proven were under a seven-year tax obligation, gone. A human had
+approved one plan. A different plan ran. The gate stopping to ask was
+necessary and it was not sufficient, because nothing tied what got approved
+to what got executed.
 
-<<SCREENSHOT: agent.manifest.json showing requireApprovalForTools next to
-the chat UI, with no equivalent control visible in the UI>>
+<<SCREENSHOT: MCP server log showing REFUSED / COMMITTING / COMMITTED after
+the fix>>
 
-The second is where the actual security boundary in this whole system turns
-out to live. We had assumed, going in, that the interesting code to review
-carefully would be the tool bodies: the SQL, the transaction handling, the
-cascade logic. It isn't. The tool bodies can be as careful or as sloppy as
-you like; what determines whether a human gets a say before an irreversible
-write happens is one annotation, `destructiveHint: true`, set on exactly one
-tool, in an eleven-line file. Change that one value, or forget to set it on
-a new tool that writes to production, and the harness stops pausing. It will
-not tell you it stopped pausing. Once we noticed that, the review priority
-inverted: the annotations file is now the thing we read line by line before
-every merge, and the tool implementations get the normal amount of
-attention. A four-line object is doing more safety work in this codebase
-than any function in it.
+The fix is a token. A clean rehearsal now mints a single-use token
+fingerprinted to the exact plan it measured, and execution requires that
+token and re-derives the fingerprint from whatever plan it is handed. Change
+one predicate and the write is refused; an illegal or blocked rehearsal
+mints nothing, so no amount of retrying manufactures one. "The harness
+pauses for approval" reads like it already covers this. It doesn't, and we
+did not notice until it failed in exactly the way the whole project exists
+to prevent.
+
+The second is that the approval gate itself is configured through the agent
+manifest's API, with no equivalent toggle anywhere in the chat UI. A wrong
+or dropped entry in that list does not throw or warn; it fails by letting a
+destructive tool run unattended, and you find out during the recording. We
+now treat "confirm the gate fires in a live session" as release-blocking,
+not optional.
+
+The third is where the real security boundary in this system turns out to
+live. We assumed the code worth reviewing carefully would be the tool
+bodies: the SQL, the transaction handling. It isn't. What determines whether
+a human gets a say before an irreversible write happens is one annotation,
+`destructiveHint: true`, set on exactly one tool, in an eleven-line file.
+Miss it on a new tool and the harness stops pausing, silently. Our review
+priority inverted once we noticed: that file gets read line by line before
+every merge now.
 
 <<SCREENSHOT: annotations.ts in full, with the DESTRUCTIVE export
 highlighted>>
 
-Neither of these showed up in a design review. Both showed up from actually
-running the thing against a real database and asking, specifically, "what
-happens if this one value is wrong."
+None of these three showed up in a design review. All three showed up from
+running the thing against a real database and a real harness, and asking,
+specifically, "what happens if this one value is wrong."
 
 ## The general principle
 

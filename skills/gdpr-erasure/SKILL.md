@@ -87,6 +87,12 @@ plan, ask what should change, revise, rehearse again, and return; do not
 re-present the same plan or attempt the execution tool again without a fresh
 clean rehearsal behind it.
 
+A clean rehearsal is what makes the execution tool callable at all: use the
+plan and the token that exact rehearsal returned, unchanged. If you alter the
+plan after rehearsing it, even to simplify it after an error, that token no
+longer applies and the tool will refuse it. Rehearse the plan you actually
+intend to run, not a fallback you have not measured.
+
 ## 9. Verify the outcome against what you measured
 
 After execution, check the resulting state against the rehearsal that was
@@ -107,7 +113,9 @@ database rather than taken on trust.
 ## Rules
 
 - Never call the execution tool until a rehearsal of that exact plan has come
-  back with no retention violations.
+  back with no retention violations, and always call it with the token that
+  same rehearsal returned. A different plan, even a simpler one offered after
+  an error, needs its own clean rehearsal before it can run.
 - Never delete a row a retention policy protects. Anonymise it instead, per
   step 6.
 - If a table your plan touches has no retention policy entry at all, that is

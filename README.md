@@ -32,20 +32,31 @@ to keep seven years of invoice records for the same customer.
 
 ## Setup
 
-From a clean clone:
+The tested, step-by-step walkthrough from a clean clone, including running
+TrueForge itself, is `docs/SETUP.md`. It was written against a Windows +
+Docker Desktop run and calls out where macOS/Linux differ; follow it, not the
+summary below, if this is your first time standing up the stack.
+
+Short version, once you know the shape of it:
 
 ```bash
-cp .env.example .env          # set MCP_AUTH_TOKEN to a value you'll reuse below
-docker compose up -d --build  # postgres + redis + the subject-data MCP server on :8080
+cp .env.example .env          # set MCP_AUTH_TOKEN, and see docs/SETUP.md re: port defaults
+docker compose up -d --build  # postgres + redis + the subject-data MCP server
 ```
 
-Register the MCP connector in TrueForge: Settings → Connectors → Add MCP
-Server, URL `http://mcp-server:8080/mcp`, bearer token from `.env`.
+Register the MCP connector in TrueForge (Settings → Connectors → Add MCP
+Server) with the bearer token from `.env`. The URL depends on whether
+TrueForge shares a Docker network with this stack: if it does, use
+`http://mcp-server:<PORT>/mcp`; if TrueForge runs as its own separate stack
+(the common case, see `docs/SETUP.md` Part 2), use
+`http://host.docker.internal:<MCP_HOST_PORT>/mcp` from the host's point of
+view instead, since `localhost` inside TrueForge's own container means
+TrueForge, not this one.
 
-Register the skill in TrueForge: Settings → Skills → Add Skill, repository
-URL for this repo, path `skills/gdpr-erasure`, and a **ref pinned to a commit
-SHA**, not a branch name (a skill re-materializes from that ref at runtime,
-so a branch ref would change under you). Get the current SHA with:
+Register the skill (Settings → Skills → Add Skill) with a repository URL,
+path `skills/gdpr-erasure`, and a **ref pinned to a commit SHA**, not a
+branch name, so what loads at runtime cannot drift out from under you. Get
+the current SHA with:
 
 ```bash
 git log -1 --format=%H -- skills/gdpr-erasure/SKILL.md
@@ -57,10 +68,11 @@ Provision the agent:
 cd packages/agent && npm install && npm run provision
 ```
 
-The agent's `config.sandbox.enabled` must be `true` in
-`packages/agent/agent.manifest.json` (it is, by default). Skills do not load
-into a session without a sandbox, regardless of whether the skill itself is
-registered correctly.
+`packages/agent/agent.manifest.json`'s `config.sandbox.enabled` must be
+`true` (it is, by default) and a sandbox provider (Daytona) must be
+configured in TrueForge first: an agent spec with a sandbox or a skill is
+rejected at session creation without one. The provisioning output ends by
+listing which tools are gated; confirm `execute_deletion` is the only one.
 
 To verify the stack without a live TrueForge session, run the smoke suite
 described in `docs/runbook.md`. To verify the full harness behaviour,
@@ -83,7 +95,7 @@ flowchart LR
     MCP -->|read-only tools| Main[(blast_main)]
     MCP -->|snapshot_to_shadow, rehearse_deletion| Shadow[(blast_shadow, disposable)]
     Harness -->|execute_deletion: destructiveHint annotation| Gate{{Approval gate: Allow / Deny}}
-    Gate -->|Allow| MCP
+    Gate -->|Allow, plus the token from the approved rehearsal| MCP
     Harness -.session state survives a closed tab.-> Harness
 ```
 
@@ -95,13 +107,22 @@ flowchart LR
   alone carries the destructive annotation and is also listed in the agent
   manifest's `requireApprovalForTools`; either one gating it independently is
   deliberate redundancy, described in `docs/runbook.md`.
+- **The approval is bound to the plan, not just requested before it.** A
+  clean `rehearse_deletion` mints a single-use token fingerprinted to the
+  exact plan it measured; `execute_deletion` requires that token and refuses
+  a plan that does not match it, even a superficially similar one offered
+  after an error. This exists because of a real failure, not a hypothetical
+  one: on a live run, a rejected plan led the agent to retry with a smaller,
+  unrehearsed one, and the tool executed it, destroying rows the rehearsal
+  had just proven were protected. The gate stopping to ask is necessary but
+  was not, on its own, sufficient. See assertion 9 in `docs/ACCEPTANCE.md`.
 - **Parallel subagents.** Discovery is delegated across the four data
   domains at once (`dynamicSubAgents` in the agent config), each domain
   searched differently and each returning a summary rather than row
   contents. See `skills/gdpr-erasure/references/discovery-brief.md`.
 - **Session persistence.** The harness keeps session state (Redis-backed)
   independent of any open browser tab, so a run's history and a pending
-  approval gate survive a closed and reopened tab. See assertion 11 in
+  approval gate survive a closed and reopened tab. See assertion 12 in
   `docs/ACCEPTANCE.md`.
 - **Generative UI.** Enabled in the agent config for rendering the plan and
   measured blast radius at the approval gate, rather than requiring it to be

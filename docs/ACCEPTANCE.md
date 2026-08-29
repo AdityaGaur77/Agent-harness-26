@@ -49,7 +49,8 @@ Continue the same request through to the first rehearsal. Pass: `rehearse_deleti
 runs after `snapshot_to_shadow`, and its result contains concrete counts
 (`rows_deleted_per_table`, `cascades_fired`, `rows_orphaned`,
 `retention_violations`), not a description of what the plan is expected to
-do.
+do. Because this first rehearsal is the naive, illegal plan, its
+`execution_token` field is `null`.
 
 **6. The rehearsal flags the retention conflict, and it traces to a specific
 row in `retention_policies`.**
@@ -75,22 +76,39 @@ to a table name; it should not.
 Let the agent re-rehearse the revised plan and reach the point of proposing
 execution. Pass: the harness stops and presents an Allow / Deny choice before
 `execute_deletion` runs, with the plan and the measured blast radius from the
-clean rehearsal visible alongside it.
+clean rehearsal visible alongside it. That clean rehearsal's result carries a
+non-null `execution_token`; this is what makes the call possible at all, not
+only the human's approval.
 
-**9. Deny causes a revision, not a retry.**
+**9. Execution refuses a plan that does not match the token's rehearsal.**
+This is the property added after a real failure: on 2026-08-28, running end
+to end against a live harness, a compliant plan hit a validation error, the
+agent retried with a smaller plan it had never rehearsed, and (before the
+fix) `execute_deletion` ran it anyway, destroying rows a clean rehearsal had
+just proven were protected. Confirm the fix holds: call `execute_deletion`
+with a valid `execution_token` but a `plan` that differs from the one that
+token was issued for (add, remove, or reword a step). Pass: the call is
+refused, production is untouched, and the refusal is visible in the MCP
+server's log as `[execute_deletion] REFUSED`. Also confirm the negative case
+from assertion 5: attempting `execute_deletion` with the naive plan's `null`
+token is refused before touching production.
+
+**10. Deny causes a revision, not a retry.**
 Choose Deny. Pass: the agent does not immediately re-propose the same plan.
 It asks what should change, or explains what it will change, and the next
 `execute_deletion` attempt is preceded by a fresh rehearsal of whatever plan
-comes next, not a replay of the denied one.
+comes next, not a replay of the denied one, since that fresh plan needs a
+token of its own.
 
-**10. Allow executes.**
+**11. Allow executes.**
 Start a fresh run of the same scenario (or continue past a second gate) and
 choose Allow. Pass: `execute_deletion` runs against production, returns
 `executed: true`, and the transaction commits (verify with a direct query
 that the customer's protected columns changed and the previously-flagged
-rows in `orders` / `order_items` are still present).
+rows in `orders` / `order_items` are still present). The MCP server's log
+shows `[execute_deletion] COMMITTING` followed by `COMMITTED` for this call.
 
-**11. The tab can be closed mid-run and reopened with history intact.**
+**12. The tab can be closed mid-run and reopened with history intact.**
 During a run, after at least one rehearsal has completed but before the
 approval gate is resolved, close the browser tab (or the TrueForge chat
 window) entirely. Reopen TrueForge, navigate to the same session. Pass: the
@@ -98,14 +116,14 @@ full message history, every tool call and its result, and the pending
 Allow/Deny gate are all still there, and choosing Allow or Deny from the
 reopened session behaves the same as if the tab had never closed.
 
-**12. The final database state matches the rehearsal prediction exactly.**
-After assertion 10. Pass: `order_items` rows tied to the customer's orders
+**13. The final database state matches the rehearsal prediction exactly.**
+After assertion 11. Pass: `order_items` rows tied to the customer's orders
 are still present and unchanged, the `orders` rows are still present, the
 customer's PII columns (`email`, `full_name`, `phone`) no longer hold their
 original values, and every other table the plan named as a hard delete
 (addresses, uploads) has zero remaining rows for that customer. Every number
-here should match what the approved rehearsal in assertion 8 predicted,
-exactly.
+here should match what the approved rehearsal in assertion 8 predicted and
+the token in assertion 9 was bound to, exactly.
 
 ## Skill ablation
 
@@ -140,8 +158,17 @@ resolved.
 |---|---|---|---|
 | [#1](https://github.com/AdityaGaur77/Agent-harness-26/pull/1) | MCP server, approval gate, and agent provisioning | Closed (superseded, not merged) | `<<QODO_PR1_STATUS>>` |
 | [#6](https://github.com/AdityaGaur77/Agent-harness-26/pull/6) | Add synthetic demo database baseline | Open | `<<QODO_PR6_STATUS>>` |
-| [#8](https://github.com/AdityaGaur77/Agent-harness-26/pull/8) | Complete gdpr-erasure skill | Open | `<<QODO_PR8_STATUS>>` |
+| `<<AMELIA_PR_NUMBER>>` | Skill, acceptance script, README, submission docs (this branch, consolidated from closed #8-13) | Open | `<<QODO_AMELIA_PR_STATUS>>` |
 
 Update this table as PRs open, merge, or close. Before submission, every row
 for a merged PR must show either "no High findings" or a fixed/dismissed
 status for each one it had; do not submit with a blank cell on a merged PR.
+
+Two commits landed directly on `Aditya` without going through a PR: `20666ee`
+(`docs/SETUP.md`) and `d5be82c` (the execution-token binding fix). Both are
+substantive changes under rule 4's definition, not typo fixes. They should
+each get a Qodo pass, either retroactively via a PR that carries no diff
+against `Aditya` (opens a review thread without re-merging anything) or by
+treating the next PR that touches those files as the vehicle for reviewing
+them. Do not let a change dodge review by having already landed on the
+branch a PR's diff is measured against.
