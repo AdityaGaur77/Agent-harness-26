@@ -16,12 +16,13 @@ configured to use.
 ## Assertions
 
 **1. Setup completes from the README verbatim.**
-Follow the README's Quick start section exactly, with no steps added,
-skipped, or inferred: copy `.env.example` to `.env`, set `MCP_AUTH_TOKEN`,
-run `docker compose up -d --build`, register the connector in TrueForge
-Settings, run the provisioning command. Pass: every command in that section
-exits zero and produces the output the README says it will, using only
-information in the README.
+Follow the README's Setup section exactly, with no steps added, skipped, or
+inferred: copy `.env.example` to `.env`, set `MCP_AUTH_TOKEN`, run
+`docker compose up -d --build`, register the connector and skill in
+TrueForge Settings, export the environment variables the README lists, and
+run the provisioning command. Pass: every command exits zero and produces
+the output the README says it will, using only information in the README (or
+in `docs/SETUP.md`, which the README's Setup section explicitly defers to).
 
 **2. A real MCP tool is reached and visible in the trace.**
 In a TrueForge chat session with the provisioned agent, ask a question that

@@ -62,17 +62,29 @@ the current SHA with:
 git log -1 --format=%H -- skills/gdpr-erasure/SKILL.md
 ```
 
-Provision the agent:
+Provision the agent. `.env` configures the Docker Compose stack only;
+`packages/agent/provision.ts` reads `process.env` directly and will not load
+it, so export the same values (plus the TrueForge-side ones) in the shell
+you run this from:
 
 ```bash
-cd packages/agent && npm install && npm run provision
+cd packages/agent && npm install
+export TRUEFORGE_BASE_URL=http://localhost:8791
+export TRUEFORGE_TOKEN=<your value>
+export MODEL_NAME=<provider>/<model>
+export MCP_AUTH_TOKEN=<same value as .env>
+export MCP_SERVER_URL=<see docs/SETUP.md Part 4 for host.docker.internal vs. same-network>
+npm run provision
 ```
 
 `packages/agent/agent.manifest.json`'s `config.sandbox.enabled` must be
 `true` (it is, by default) and a sandbox provider (Daytona) must be
 configured in TrueForge first: an agent spec with a sandbox or a skill is
-rejected at session creation without one. The provisioning output ends by
-listing which tools are gated; confirm `execute_deletion` is the only one.
+rejected at session creation without one. The provisioning script does not
+print which tools ended up gated, so verify it directly: check
+`requireApprovalForTools` in `agent.manifest.json` (should list only
+`execute_deletion`), and confirm the same in the TrueForge UI under the
+agent's settings after `npm run provision` completes.
 
 To verify the stack without a live TrueForge session, run the smoke suite
 described in `docs/runbook.md`. To verify the full harness behaviour,

@@ -6,8 +6,8 @@ the orders and order_items counts visible>>
 The first time our agent ran a full erasure against the rehearsal copy, it
 worked. No constraint errors, no rolled-back transaction, no red text
 anywhere in the trace. `DELETE FROM customers WHERE id = 4471` and everything
-that referenced it went with it, cleanly, cascading through eight orders and
-forty line items on the way down. The database did not object once.
+that referenced it went with it, cleanly, cascading through twelve orders and
+twelve order line items on the way down. The database did not object once.
 
 That was the moment we understood we had built the wrong test. We had been
 watching for the plan to fail. It didn't. It succeeded at deleting exactly
