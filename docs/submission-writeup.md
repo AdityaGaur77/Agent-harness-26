@@ -12,8 +12,8 @@ destructive tool is annotated as such, so the harness pauses for a human
 Allow or Deny by annotation, not prompt discipline. A rehearsal token then
 binds execution to exactly the approved plan, so a retried, unrehearsed
 fallback cannot run in its place. Before the gate, the agent snapshots the
-database to a shadow copy and rehearses there, measuring the real blast
-radius instead of predicting it. When rehearsal shows the naive plan
+database and rehearses the plan against a disposable copy, measuring the
+real blast radius instead of predicting it. When rehearsal shows the naive plan
 destroying protected records, the agent revises to anonymise instead,
 unaided, from a rule that lives only in the database, read at runtime.
 

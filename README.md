@@ -139,16 +139,24 @@ flowchart LR
 - **Generative UI.** Enabled in the agent config for rendering the plan and
   measured blast radius at the approval gate, rather than requiring it to be
   read out of a plain-text tool result.
-- **Skills, not code execution.** The procedure lives in
+- **Skills, not Code Mode.** The procedure lives in
   `skills/gdpr-erasure/SKILL.md`, loaded into the sandboxed session at
-  `/opt/tfy/skills/gdpr-erasure`. Blast Radius does not use TrueForge's Code
-  Mode: every action the agent takes is one of the seven MCP tool calls
-  above, not agent-authored code the harness executes.
+  `/opt/tfy/skills/gdpr-erasure`. The sandbox itself is real and provisioned
+  for every session (`config.sandbox.enabled: true` in the agent config,
+  required for any skill to load at all), but that is not the same claim as
+  the Double-O track's own description of what it rewards, which names
+  "generated code running in a sandbox" specifically. Blast Radius does not
+  have that. Every action the agent takes is one of the seven MCP tool calls
+  above, not agent-authored code the harness executes. We are naming that
+  gap here rather than letting a demo recording imply otherwise.
 
 The rehearsal itself is not sandboxed code execution either. It is the
 `rehearse_deletion` MCP tool, which really runs the plan inside the
 disposable shadow database and rolls the transaction back. Its numbers are
-measured, not predicted.
+measured, not predicted, but nothing about producing them runs as generated
+code. Routing the rehearsal through Code Mode instead of a direct tool call
+is the highest-value change left for this track if there is time before
+submission; see [#16](https://github.com/AdityaGaur77/Agent-harness-26/issues/16).
 
 ## Qodo Code Review Evidence
 
