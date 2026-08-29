@@ -31,6 +31,13 @@ const irrelevantChatFeatures = [
   "gpt-store",
 ];
 const firstPersonPattern = /\b(?:I(?:['’](?:m|ll|d|ve)|\b)|me|my|mine|we(?:['’](?:re|ve|ll|d)|\b)|us|our|ours)\b/;
+const previewFunctionStart = js.indexOf("async function startGuidedPreview");
+const liveFunctionStart = js.indexOf("async function startMission");
+const guidedPreviewBody = previewFunctionStart >= 0 && liveFunctionStart > previewFunctionStart
+  ? js.slice(previewFunctionStart, liveFunctionStart)
+  : "";
+const deleteHandlerStart = js.indexOf("async function handleDeleteAction");
+const deleteHandlerBody = deleteHandlerStart >= 0 ? js.slice(deleteHandlerStart) : "";
 
 const assertions = [
   ["main landmark", /<main[^>]+id="main-content"/.test(html)],
@@ -65,6 +72,10 @@ const assertions = [
   ["customer copy contains no fixture data", !html.includes("Demo only") && !html.includes("Synthetic") && !html.includes("customer 4471") && !html.includes("example.test") && html.includes("Nothing changes without your approval.")],
   ["customer-facing source omits internal references", !/ascii|synthetic|demo|customer 4471|example\.test|nashville|jane q/i.test(`${html}\n${css}`)],
   ["customer-facing source uses no first person", !firstPersonPattern.test(`${html}\n${css}\n${js}`)],
+  ["guided preview trigger is normalized", js.includes('GUIDED_PREVIEW_PHRASE = "find information on jane austin"') && js.includes("normalizePrompt") && js.includes("isGuidedPreviewPrompt") && js.includes("if (isGuidedPreviewPrompt(cleanPrompt))") && js.includes("if (isGuidedPreviewPrompt(message))")],
+  ["guided preview stays off the live path", guidedPreviewBody.includes("GUIDED_PREVIEW.sources") && !guidedPreviewBody.includes("mcpTool") && !guidedPreviewBody.includes("exaSearch")],
+  ["preview approval cannot delete", deleteHandlerBody.includes('if (run.mode === "preview")') && deleteHandlerBody.indexOf('if (run.mode === "preview")') < deleteHandlerBody.indexOf("const liveData = run.liveData") && deleteHandlerBody.includes("No connected records were changed")],
+  ["guided preview shows the product story", js.includes("Four example sources reviewed") && js.includes("Approval is required before any change") && js.includes("setPreviewIdentity")],
   ["agent status announced", html.includes('role="status"') && html.includes('aria-live="polite"')],
   ["presence adapts across both views", html.includes('id="home-presence"') && html.includes('id="agent-presence"') && js.includes("class PresenceAgent")],
   ["landing horse uses authored motion frames", html.includes('id="landing-motion"') && js.includes("class HorseMotion") && js.includes("HORSE_FRAME_COUNT = 11") && horseFrames.length === 11 && horseFrames.every((frame) => frame.length > 1000)],

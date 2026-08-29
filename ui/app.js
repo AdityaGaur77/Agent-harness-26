@@ -51,9 +51,28 @@ const sidebarClose = $("#sidebar-close");
 const connectorDialog = $("#connector-dialog");
 const connectorResult = $("#connector-result");
 const identityDialog = $("#identity-dialog");
+const workspaceStatusTitle = $("#workspace-status-title");
+const workspaceStatusCopy = $("#workspace-status-copy");
+const topbarStatus = $("#topbar-status");
+const identityQuestionCopy = $("#identity-question-copy");
+const identityAnswerYes = $('[data-identity-answer="yes"]');
+const identityAnswerNo = $('[data-identity-answer="no"]');
+const deleteActionButton = $("#delete-action");
+const completionNote = $(".completion-note");
 
 const VIEW_TRANSITION_MS = 280;
 const ENTRY_STORAGE_KEY = "blast_radius_has_entered";
+const GUIDED_PREVIEW_PHRASE = "find information on jane austin";
+const GUIDED_PREVIEW = {
+  name: "Jane Austin",
+  sources: [
+    { table: "people-search", rows: 3, discovered_via: "People-search listing", detail: "Name and location", confidence: "High match" },
+    { table: "public-directory", rows: 2, discovered_via: "Public directory", detail: "Email and phone", confidence: "Likely match" },
+    { table: "property-record", rows: 1, discovered_via: "Property record", detail: "Previous address", confidence: "Needs review" },
+    { table: "account-profile", rows: 1, discovered_via: "Account profile", detail: "Username and email", confidence: "Likely match" },
+  ],
+  impact: { found: 7, remove: 4, update: 2, review: 1 },
+};
 
 const RUN_STATES = [
   "idle",
@@ -149,6 +168,8 @@ const standingAuthorization = {
 
 // Resolve a customer-provided name before searching connected services.
 function normalizeGovInput(s) { return s.trim().replace(/\s+/g, " "); }
+function normalizePrompt(s) { return String(s || "").trim().replace(/\s+/g, " ").toLowerCase(); }
+function isGuidedPreviewPrompt(prompt) { return normalizePrompt(prompt) === GUIDED_PREVIEW_PHRASE; }
 function resolveGovInput(raw) {
   const t = normalizeGovInput(raw);
   if (!t) return null;
@@ -266,6 +287,31 @@ async function updateHarnessStatus() {
   }
 }
 
+function setWorkspaceStatus(title, copy, pill = title) {
+  if (workspaceStatusTitle) workspaceStatusTitle.textContent = title;
+  if (workspaceStatusCopy) workspaceStatusCopy.textContent = copy;
+  if (topbarStatus) topbarStatus.innerHTML = `<span aria-hidden="true"></span>${pill}`;
+}
+
+function setPreviewIdentity() {
+  const identityCard = $(".identity-card");
+  const identityName = $("strong", identityCard);
+  const identityType = $("span", identityCard);
+  const identityDetail = $("small", identityCard);
+  if (identityName) identityName.textContent = GUIDED_PREVIEW.name;
+  if (identityType) identityType.textContent = "Guided preview";
+  if (identityDetail) identityDetail.textContent = "Example match from the request";
+
+  const resultMatch = $("#details-drawer .match-person");
+  const resultName = $("strong", resultMatch);
+  const resultLocation = $("span", resultMatch);
+  const resultMeta = $("small", resultMatch);
+  if (resultName) resultName.textContent = GUIDED_PREVIEW.name;
+  if (resultLocation) resultLocation.textContent = "Example match";
+  if (resultMeta) resultMeta.textContent = "Review the details before continuing";
+  matchStatus.textContent = "Possible match";
+}
+
 function persistConnectorConfig() {
   const url = $("#connector-url")?.value.trim();
   const token = $("#connector-token")?.value.trim();
@@ -283,6 +329,7 @@ const run = {
   state: "idle",
   view: "home",
   homePanel: "start",
+  mode: "live",
   paused: false,
   generation: 0,
   startedAt: null,
@@ -292,6 +339,8 @@ const run = {
   pendingQuestion: null,
   liveData: null,
   evidence: [],
+  previewQuestionResolved: false,
+  previewApproved: false,
 };
 
 class PresenceAgent {
@@ -940,7 +989,7 @@ function setRunState(nextState) {
 
   if (nextState === "question") {
     composerStatus.innerHTML =
-      '<span class="status-dot is-waiting" aria-hidden="true"></span>Answer provided. The request will continue.';
+      '<span class="status-dot is-waiting" aria-hidden="true"></span>Confirmation is needed to continue.';
   } else if (nextState === "complete") {
     composerStatus.innerHTML =
       '<span class="status-check" aria-hidden="true">✓</span>Your request is ready for approval.';
@@ -1015,10 +1064,10 @@ function renderRealEvidence(tablesWithData) {
     const name = document.createElement("strong");
     name.textContent = row.discovered_via || "Connected source";
     const detail = document.createElement("small");
-    detail.textContent = `${row.rows} matching ${row.rows === 1 ? "record" : "records"}`;
+    detail.textContent = row.detail || `${row.rows} matching ${row.rows === 1 ? "record" : "records"}`;
     copy.append(name, detail);
     const count = document.createElement("em");
-    count.textContent = `${row.rows} ${row.rows === 1 ? "record" : "records"}`;
+    count.textContent = row.confidence || `${row.rows} ${row.rows === 1 ? "record" : "records"}`;
     article.append(mark, copy, count);
     evidenceList.append(article);
   });
@@ -1168,12 +1217,16 @@ function stopTimer() {
 }
 
 function resetMission(options = {}) {
+  const wasPreview = run.mode === "preview";
   run.generation += 1;
+  run.mode = "live";
   run.paused = false;
   run.waitingForLocation = false;
   run.pendingQuestion = null;
   run.liveData = null;
   run.evidence = [];
+  run.previewQuestionResolved = false;
+  run.previewApproved = false;
   body.classList.remove("is-paused", "is-complete");
   agentPresence.setPaused(false);
   sidebarPresence.setPaused(false);
@@ -1192,6 +1245,27 @@ function resetMission(options = {}) {
   impactState.textContent = "Not started";
   impactCopy.textContent = "Review the findings before anything changes.";
   auditList.innerHTML = "<li class=\"audit-empty\"><strong>Your activity will appear here.</strong></li>";
+  identityQuestionTitle.textContent = "Do you recognize this location?";
+  if (identityQuestionCopy) identityQuestionCopy.textContent = "Two close matches were found. This answer keeps the search focused on the right person.";
+  if (identityAnswerYes) identityAnswerYes.textContent = "Yes, that's the right match";
+  if (identityAnswerNo) identityAnswerNo.textContent = "No, that's not the right match";
+  if (deleteActionButton) deleteActionButton.textContent = "Delete what you can";
+  if (completionNote) completionNote.textContent = "Nothing changes until you approve it.";
+  const actionStep = $('[data-run-step="act"]');
+  if (actionStep) {
+    const actionLabel = $("strong", actionStep);
+    const actionDetail = $("small", actionStep);
+    if (actionLabel) actionLabel.textContent = "Remove";
+    if (actionDetail) actionDetail.textContent = "Apply only the changes you approve.";
+  }
+  const primaryIdentity = $(".identity-card");
+  const primaryIdentityName = $("strong", primaryIdentity);
+  const primaryIdentityType = $("span", primaryIdentity);
+  const primaryIdentityDetail = $("small", primaryIdentity);
+  if (primaryIdentityName) primaryIdentityName.textContent = "Primary profile";
+  if (primaryIdentityType) primaryIdentityType.textContent = "Primary";
+  if (primaryIdentityDetail) primaryIdentityDetail.textContent = "Ready to protect";
+  if (wasPreview) setWorkspaceStatus("Private workspace", "Your information stays under your control.", "Private workspace");
   if (!options.keepPrompt) agentPrompt.value = "";
   setRunState("idle");
   stopTimer();
@@ -1205,9 +1279,109 @@ function titleFromPrompt(prompt) {
   return "Clear personal information";
 }
 
+function markPreviewQuestion(answer) {
+  if (run.mode !== "preview" || run.previewQuestionResolved) return;
+  run.previewQuestionResolved = true;
+  identityQuestion.hidden = true;
+  appendUserMessage(answer === "yes" ? "Example match confirmed." : "Continue with the example match.");
+  appendAudit("Confirmed", "Example identity confirmed");
+}
+
+async function startGuidedPreview(cleanPrompt) {
+  resetMission({ keepPrompt: true });
+  run.mode = "preview";
+  run.generation += 1;
+  const generation = run.generation;
+  missionTitle.textContent = "Privacy review preview";
+  userMissionCopy.textContent = cleanPrompt;
+  setView("agent");
+  setWorkspaceStatus("Guided preview", "No connected records will change.", "Guided preview");
+  setRunState("reasoning");
+  startTimer();
+  appendAudit("Started", "Guided preview opened");
+
+  if (!(await waitFor(700, generation))) return;
+  setStep("understand", "complete");
+  setStep("search", "active");
+  subagentList.hidden = false;
+  setRunState("question");
+  identityQuestionTitle.textContent = "Review the example match";
+  identityQuestionCopy.textContent = "The name in the request is used for this guided preview.";
+  identityAnswerYes.textContent = "Use this example";
+  identityAnswerNo.textContent = "Skip to results";
+  identityQuestion.hidden = false;
+  appendAudit("Needs confirmation", "Example match is ready to review");
+  scrollConversation(identityQuestion);
+
+  if (!(await waitFor(1800, generation))) return;
+  if (!run.previewQuestionResolved) {
+    run.previewQuestionResolved = true;
+    appendUserMessage("Example match confirmed.");
+    appendAudit("Confirmed", "Example identity confirmed");
+  }
+  identityQuestion.hidden = true;
+
+  setRunState("searching");
+  subagentList.hidden = false;
+  appendAudit("Search", "Reviewing example sources");
+  for (const agent of subagentPlan) {
+    setSubagentState(agent.key, "active");
+    if (!(await waitFor(280, generation))) return;
+    setSubagentState(agent.key, "done", "Reviewed");
+  }
+  run.evidence = GUIDED_PREVIEW.sources.map((source) => ({ ...source }));
+  renderRealEvidence(run.evidence);
+  appendAudit("Search", "Four example sources reviewed");
+
+  setStep("search", "complete");
+  setStep("check", "active");
+  setRunState("rehearsing");
+  impactState.textContent = "Reviewing";
+  impactCopy.textContent = "Potential changes are being prepared for review.";
+  appendAudit("Review", "Potential changes identified");
+  if (!(await waitFor(900, generation))) return;
+
+  setImpactValues([
+    GUIDED_PREVIEW.impact.found,
+    GUIDED_PREVIEW.impact.remove,
+    GUIDED_PREVIEW.impact.update,
+    GUIDED_PREVIEW.impact.review,
+  ]);
+  impactState.textContent = "Ready for review";
+  impactCopy.textContent = "The review shows what can be removed, updated, or left in place.";
+  const safetyResult = $(".safety-result", detailsDrawer);
+  if (safetyResult) safetyResult.hidden = false;
+  const technicalNote = $(".technical-note", detailsDrawer);
+  if (technicalNote) technicalNote.textContent = "No connected records will be changed in this preview.";
+  appendAudit("Review", "Proposed changes are ready");
+  setStep("check", "complete");
+  setStep("act", "waiting");
+  const actionStep = $('[data-run-step="act"]');
+  if (actionStep) {
+    const actionLabel = $("strong", actionStep);
+    const actionDetail = $("small", actionStep);
+    if (actionLabel) actionLabel.textContent = "Approve";
+    if (actionDetail) actionDetail.textContent = "No changes happen without approval.";
+  }
+  setPreviewIdentity();
+  setRunState("complete");
+  completionMessage.hidden = false;
+  pauseButton.disabled = true;
+  stopTimer();
+  if (deleteActionButton) deleteActionButton.textContent = "Approve preview";
+  if (completionNote) completionNote.textContent = "No connected records were changed.";
+  appendAudit("Ready", "Approval is required before any change");
+  scrollConversation(completionMessage);
+  openDetails("impact-summary");
+}
+
 async function startMission(prompt) {
   const cleanPrompt = prompt.trim();
   if (!cleanPrompt) return;
+  if (isGuidedPreviewPrompt(cleanPrompt)) {
+    await startGuidedPreview(cleanPrompt);
+    return;
+  }
   resetMission({ keepPrompt: true });
   run.generation += 1;
   const generation = run.generation;
@@ -1538,6 +1712,21 @@ async function testConnector() {
 
 async function handleDeleteAction({ recordMessage = true } = {}) {
   if (run.state !== "complete") return;
+  if (run.mode === "preview") {
+    if (run.previewApproved) return;
+    run.previewApproved = true;
+    if (recordMessage) appendUserMessage("Approve preview.");
+    appendAgentMessage("Preview approved. No connected records were changed.");
+    appendAudit("Approved", "Preview approved. No connected records changed.");
+    impactState.textContent = "Preview complete";
+    impactCopy.textContent = "No connected records were changed.";
+    if (deleteActionButton) {
+      deleteActionButton.textContent = "Preview complete";
+      deleteActionButton.disabled = true;
+    }
+    if (completionNote) completionNote.textContent = "No connected records were changed.";
+    return;
+  }
   const liveData = run.liveData;
   if (!liveData?.safePlan) {
     appendAgentMessage("Changes cannot be made until the request is ready for approval.");
@@ -1583,11 +1772,24 @@ agentForm.addEventListener("submit", (event) => {
   const message = agentPrompt.value.trim();
   if (!message) return;
   const lower = message.toLowerCase();
+  if (isGuidedPreviewPrompt(message)) {
+    agentPrompt.value = "";
+    resizeTextarea(agentPrompt);
+    startMission(message);
+    return;
+  }
   if ((lower.includes("delete") || lower.includes("clear") || lower.includes("remove")) && run.state === "complete") {
     appendUserMessage(message);
     agentPrompt.value = "";
     resizeTextarea(agentPrompt);
     handleDeleteAction({ recordMessage: false });
+    return;
+  }
+  if (run.mode === "preview" && run.state === "question") {
+    appendUserMessage(message);
+    agentPrompt.value = "";
+    resizeTextarea(agentPrompt);
+    appendAgentMessage("The guided preview continues automatically.");
     return;
   }
   appendUserMessage(message);
@@ -1639,6 +1841,10 @@ if (serviceRetry) serviceRetry.addEventListener("click", () => {
 $$("[data-identity-answer]").forEach((button) => {
   button.addEventListener("click", () => {
     const answer = button.dataset.identityAnswer;
+    if (run.mode === "preview") {
+      markPreviewQuestion(answer);
+      return;
+    }
     if (answer === "yes") {
       appendUserMessage("Yes, that's the right match.");
       continueAutonomousRun();
