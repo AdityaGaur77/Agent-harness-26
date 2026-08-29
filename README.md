@@ -39,8 +39,9 @@ deletes PII while keeping retained rows. The smoke suite and the primary MCP
 server both target `blast_main`; they never mutate the synthetic demo database.
 
 ```bash
-docker compose up -d --build
+docker compose up -d --build --wait
 cd packages/mcp-subject-data
+npm ci
 export DATABASE_URL=postgresql://blast:blast@127.0.0.1:5432/blast_main
 export MCP_URL=http://127.0.0.1:8080
 export MCP_AUTH_TOKEN=change-me-dev-token # use the same value as the root .env
@@ -51,6 +52,7 @@ On Windows `cmd.exe`, use:
 
 ```cmd
 cd packages\mcp-subject-data
+npm ci
 set DATABASE_URL=postgresql://blast:blast@127.0.0.1:5432/blast_main
 set MCP_URL=http://127.0.0.1:8080
 set MCP_AUTH_TOKEN=change-me-dev-token

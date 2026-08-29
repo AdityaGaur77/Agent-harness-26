@@ -19,7 +19,7 @@ the annotation auto-gates on `@destructive` even if the manifest list changes.
 ### Start / stop everything
 
 ```bash
-MCP_AUTH_TOKEN=dev-token docker compose up -d --build   # start
+MCP_AUTH_TOKEN=dev-token docker compose up -d --build --wait   # start and wait for health
 docker compose down                                      # stop (keeps pgdata volume)
 ```
 

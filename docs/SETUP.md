@@ -45,7 +45,7 @@ Change it in one place only and every tool call returns 401.
 Boot it:
 
 ```
-docker compose up -d --build
+docker compose up -d --build --wait
 docker compose ps
 ```
 

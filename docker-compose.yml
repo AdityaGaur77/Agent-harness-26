@@ -70,6 +70,17 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8080/healthz').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   demo-mcp-server:
     build: packages/mcp-subject-data
@@ -86,6 +97,17 @@ services:
     networks:
       - default
       - demo-internal
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8080/healthz').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
 volumes:
   pgdata:
