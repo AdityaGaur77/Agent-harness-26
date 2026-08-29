@@ -30,6 +30,7 @@ const irrelevantChatFeatures = [
   "project-switcher",
   "gpt-store",
 ];
+const firstPersonPattern = /\b(?:I(?:['’](?:m|ll|d|ve)|\b)|me|my|mine|we(?:['’](?:re|ve|ll|d)|\b)|us|our|ours)\b/;
 
 const assertions = [
   ["main landmark", /<main[^>]+id="main-content"/.test(html)],
@@ -38,7 +39,7 @@ const assertions = [
   ["first-visit front door", html.includes('id="landing-title"') && html.includes('id="landing-description"') && html.includes('id="enter-agent"') && html.includes("Your personal data")],
   ["first visit is remembered", js.includes('ENTRY_STORAGE_KEY = "blast_radius_has_entered"') && js.includes("hasEnteredAgent") && js.includes("rememberAgentEntry") && js.includes("localStorage.setItem(ENTRY_STORAGE_KEY")],
   ["landing handoff is considered", js.includes("landingView.classList.add(\"is-leaving\")") && js.includes("appShell.classList.add(\"is-entering-workspace\")") && js.includes("VIEW_TRANSITION_MS = 280") && css.includes("landing-exit")],
-  ["prompt-first home", html.indexOf('id="home-prompt"') < html.indexOf('id="recent-missions"') && (html.includes("Tell me what to find") || html.includes("What would you like me to find") || html.includes("What should I find or remove"))],
+  ["prompt-first home", html.indexOf('id="home-prompt"') < html.indexOf('id="recent-missions"') && (html.includes("Tell me what to find") || html.includes("What would you like to find") || html.includes("What should be found or removed"))],
   ["only relevant chat patterns", irrelevantChatFeatures.every((value) => !all.includes(value))],
   ["home navigation is privacy specific", ["New request", "Activity", "Connections"].every((value) => html.includes(value)) && (html.includes("Watched") || html.includes("Monitored"))],
   ["editorial agent voice", (html.includes("family=Newsreader") || html.includes("family=Merriweather")) && css.includes("--font-agent")],
@@ -63,6 +64,7 @@ const assertions = [
   ["monitored identity is usable", html.includes('id="monitored-panel"') && html.includes("Primary profile") && html.includes("Your email address") && html.includes('id="add-identity"')],
   ["customer copy contains no fixture data", !html.includes("Demo only") && !html.includes("Synthetic") && !html.includes("customer 4471") && !html.includes("example.test") && html.includes("Nothing changes without your approval.")],
   ["customer-facing source omits internal references", !/ascii|synthetic|demo|customer 4471|example\.test|nashville|jane q/i.test(`${html}\n${css}`)],
+  ["customer-facing source uses no first person", !firstPersonPattern.test(`${html}\n${css}\n${js}`)],
   ["agent status announced", html.includes('role="status"') && html.includes('aria-live="polite"')],
   ["presence adapts across both views", html.includes('id="home-presence"') && html.includes('id="agent-presence"') && js.includes("class PresenceAgent")],
   ["landing horse uses authored motion frames", html.includes('id="landing-motion"') && js.includes("class HorseMotion") && js.includes("HORSE_FRAME_COUNT = 11") && horseFrames.length === 11 && horseFrames.every((frame) => frame.length > 1000)],
