@@ -59,18 +59,24 @@ const identityAnswerYes = $('[data-identity-answer="yes"]');
 const identityAnswerNo = $('[data-identity-answer="no"]');
 const deleteActionButton = $("#delete-action");
 const completionNote = $(".completion-note");
+const completionTitle = $("#completion-title");
+const completionCopy = $("#completion-copy");
 
 const VIEW_TRANSITION_MS = 280;
 const ENTRY_STORAGE_KEY = "blast_radius_has_entered";
 const GUIDED_PREVIEW_PHRASE = "find information on jane austin";
 const GUIDED_PREVIEW = {
   name: "Jane Austin",
+  requestLabel: "Find personal information",
   sources: [
-    { table: "people-search", rows: 3, discovered_via: "People-search listing", detail: "Name and location", confidence: "High match" },
-    { table: "public-directory", rows: 2, discovered_via: "Public directory", detail: "Email and phone", confidence: "Likely match" },
-    { table: "property-record", rows: 1, discovered_via: "Property record", detail: "Previous address", confidence: "Needs review" },
-    { table: "account-profile", rows: 1, discovered_via: "Account profile", detail: "Username and email", confidence: "Likely match" },
+    { table: "people-search", website: "People-search listings", rows: 3, discovered_via: "People-search listings", detail: "Name and location", finding: "Name and location details found.", confidence: "High match" },
+    { table: "public-directory", website: "Public directories", rows: 2, discovered_via: "Public directories", detail: "Phone and email", finding: "A phone number and email address found.", confidence: "Likely match" },
+    { table: "property-record", website: "Property records", rows: 1, discovered_via: "Property records", detail: "Previous address", finding: "A previous address found.", confidence: "Needs review" },
+    { table: "account-profile", website: "Account profile pages", rows: 1, discovered_via: "Account profile pages", detail: "Username and email", finding: "A username and email address found.", confidence: "Likely match" },
   ],
+  information: ["name", "location", "phone number", "email address", "previous address", "username"],
+  proposedRemovals: ["public phone number", "public email address", "previous address", "exposed username"],
+  proposedUpdates: ["opt-out status on two websites", "connected record status"],
   impact: { found: 7, remove: 4, update: 2, review: 1 },
 };
 
@@ -1053,7 +1059,8 @@ function renderRealEvidence(tablesWithData) {
     sourceSummary.textContent = "No sources yet";
     return;
   }
-  sourceSummary.textContent = `${tablesWithData.length} ${tablesWithData.length === 1 ? "source" : "sources"} found`;
+  const sourceUnit = tablesWithData.some((row) => row.website) ? "website" : "source";
+  sourceSummary.textContent = `${tablesWithData.length} ${tablesWithData.length === 1 ? sourceUnit : sourceUnit + "s"} found`;
   tablesWithData.forEach((row) => {
     const article = document.createElement("article");
     const mark = document.createElement("span");
@@ -1062,7 +1069,7 @@ function renderRealEvidence(tablesWithData) {
     mark.textContent = (row.table?.[0] || "T").toUpperCase();
     const copy = document.createElement("div");
     const name = document.createElement("strong");
-    name.textContent = row.discovered_via || "Connected source";
+    name.textContent = row.website || row.discovered_via || "Connected source";
     const detail = document.createElement("small");
     detail.textContent = row.detail || `${row.rows} matching ${row.rows === 1 ? "record" : "records"}`;
     copy.append(name, detail);
@@ -1251,6 +1258,8 @@ function resetMission(options = {}) {
   if (identityAnswerNo) identityAnswerNo.textContent = "No, that's not the right match";
   if (deleteActionButton) deleteActionButton.textContent = "Delete what you can";
   if (completionNote) completionNote.textContent = "Nothing changes until you approve it.";
+  if (completionTitle) completionTitle.textContent = "Your review is ready.";
+  if (completionCopy) completionCopy.textContent = "The connected records were checked. Review the findings, then choose which information to remove.";
   const actionStep = $('[data-run-step="act"]');
   if (actionStep) {
     const actionLabel = $("strong", actionStep);
@@ -1287,18 +1296,27 @@ function markPreviewQuestion(answer) {
   appendAudit("Confirmed", "Example identity confirmed");
 }
 
+function humanList(items) {
+  if (!items.length) return "";
+  if (items.length === 1) return items[0];
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
 async function startGuidedPreview(cleanPrompt) {
   resetMission({ keepPrompt: true });
   run.mode = "preview";
   run.generation += 1;
   const generation = run.generation;
+  homePrompt.value = "";
+  resizeTextarea(homePrompt);
   missionTitle.textContent = "Privacy review preview";
-  userMissionCopy.textContent = cleanPrompt;
+  userMissionCopy.textContent = GUIDED_PREVIEW.requestLabel;
   setView("agent");
   setWorkspaceStatus("Guided preview", "No connected records will change.", "Guided preview");
   setRunState("reasoning");
   startTimer();
   appendAudit("Started", "Guided preview opened");
+  appendAgentMessage(`The search is mapping a likely match for ${GUIDED_PREVIEW.name} across public websites.`);
 
   if (!(await waitFor(700, generation))) return;
   setStep("understand", "complete");
@@ -1320,18 +1338,27 @@ async function startGuidedPreview(cleanPrompt) {
     appendAudit("Confirmed", "Example identity confirmed");
   }
   identityQuestion.hidden = true;
+  appendAgentMessage(`The example match is set. Checking ${GUIDED_PREVIEW.sources.length} websites for ${humanList(GUIDED_PREVIEW.information)}.`);
 
   setRunState("searching");
   subagentList.hidden = false;
   appendAudit("Search", "Reviewing example sources");
-  for (const agent of subagentPlan) {
+  for (const [index, agent] of subagentPlan.entries()) {
     setSubagentState(agent.key, "active");
     if (!(await waitFor(280, generation))) return;
     setSubagentState(agent.key, "done", "Reviewed");
+    if (index < GUIDED_PREVIEW.sources.length) {
+      const source = GUIDED_PREVIEW.sources[index];
+      appendAgentMessage(`Reviewed ${source.website}. ${source.finding}`);
+    } else {
+      appendAgentMessage(`Cross-check complete. The same name appears across ${GUIDED_PREVIEW.sources.length} websites.`);
+    }
   }
   run.evidence = GUIDED_PREVIEW.sources.map((source) => ({ ...source }));
   renderRealEvidence(run.evidence);
   appendAudit("Search", "Four example sources reviewed");
+  appendAgentMessage(`Found ${GUIDED_PREVIEW.impact.found} records for ${GUIDED_PREVIEW.name} across ${GUIDED_PREVIEW.sources.length} websites.`);
+  appendAgentMessage(`Information found: ${humanList(GUIDED_PREVIEW.information)}.`);
 
   setStep("search", "complete");
   setStep("check", "active");
@@ -1339,6 +1366,7 @@ async function startGuidedPreview(cleanPrompt) {
   impactState.textContent = "Reviewing";
   impactCopy.textContent = "Potential changes are being prepared for review.";
   appendAudit("Review", "Potential changes identified");
+  appendAgentMessage("The review is separating information that can be removed from records that should stay available for verification.");
   if (!(await waitFor(900, generation))) return;
 
   setImpactValues([
@@ -1348,12 +1376,14 @@ async function startGuidedPreview(cleanPrompt) {
     GUIDED_PREVIEW.impact.review,
   ]);
   impactState.textContent = "Ready for review";
-  impactCopy.textContent = "The review shows what can be removed, updated, or left in place.";
+  impactCopy.textContent = `Found ${GUIDED_PREVIEW.impact.found} records across ${GUIDED_PREVIEW.sources.length} websites. ${GUIDED_PREVIEW.impact.remove} items would be removed and ${GUIDED_PREVIEW.impact.update} updates requested after approval.`;
   const safetyResult = $(".safety-result", detailsDrawer);
   if (safetyResult) safetyResult.hidden = false;
   const technicalNote = $(".technical-note", detailsDrawer);
   if (technicalNote) technicalNote.textContent = "No connected records will be changed in this preview.";
   appendAudit("Review", "Proposed changes are ready");
+  appendAgentMessage(`What would be removed after approval: ${humanList(GUIDED_PREVIEW.proposedRemovals)}.`);
+  appendAgentMessage(`Updates ready for review: ${humanList(GUIDED_PREVIEW.proposedUpdates)}.`);
   setStep("check", "complete");
   setStep("act", "waiting");
   const actionStep = $('[data-run-step="act"]');
@@ -1368,11 +1398,14 @@ async function startGuidedPreview(cleanPrompt) {
   completionMessage.hidden = false;
   pauseButton.disabled = true;
   stopTimer();
+  if (completionTitle) completionTitle.textContent = "Findings are ready.";
+  if (completionCopy) completionCopy.textContent = `${GUIDED_PREVIEW.name} appears across ${GUIDED_PREVIEW.sources.length} websites. Review the information found and the proposed removals below.`;
   if (deleteActionButton) deleteActionButton.textContent = "Approve preview";
   if (completionNote) completionNote.textContent = "No connected records were changed.";
   appendAudit("Ready", "Approval is required before any change");
+  appendAgentMessage("Review complete. The findings are open in the results panel; no connected records will change in this preview.");
   scrollConversation(completionMessage);
-  openDetails("impact-summary");
+  openDetails("source-details");
 }
 
 async function startMission(prompt) {
@@ -1716,7 +1749,7 @@ async function handleDeleteAction({ recordMessage = true } = {}) {
     if (run.previewApproved) return;
     run.previewApproved = true;
     if (recordMessage) appendUserMessage("Approve preview.");
-    appendAgentMessage("Preview approved. No connected records were changed.");
+    appendAgentMessage(`Preview approved. ${humanList(GUIDED_PREVIEW.proposedRemovals)} would be removed in a live request; no connected records were changed.`);
     appendAudit("Approved", "Preview approved. No connected records changed.");
     impactState.textContent = "Preview complete";
     impactCopy.textContent = "No connected records were changed.";
