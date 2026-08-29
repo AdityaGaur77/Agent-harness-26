@@ -16,10 +16,13 @@ Built for [The Agent Harness Hackathon](https://wemakedevs.org) on [TrueForge](h
 
 ```bash
 cp .env.example .env          # set MCP_AUTH_TOKEN
-docker compose up -d --build  # postgres + redis + MCP server on :8080
+docker compose up -d --build  # primary MCP :8080; synthetic demo MCP :8081
 ```
 
-Register the connector in TrueForge: Settings → Connectors → Add MCP Server → URL `http://mcp-server:8080/mcp`, bearer token from `.env`.
+Register the Blast Radius connector in TrueForge with the bearer token from
+`.env`. Standalone TrueForge uses `http://127.0.0.1:8081/mcp`; containerized
+TrueForge uses `http://host.docker.internal:8081/mcp`. Port `8080` remains the
+original `blast_main` development and smoke-test endpoint.
 
 Provision the agent:
 
@@ -32,14 +35,16 @@ cd packages/agent && npm install && npm run provision
 The MCP package ships an end-to-end smoke suite that replays the whole erasure
 story against a throwaway Postgres: naive plan cascades into tax records,
 retention conflict is measured, revised plan comes back clean, execution
-deletes PII while keeping retained rows.
+deletes PII while keeping retained rows. The smoke suite and the primary MCP
+server both target `blast_main`; they never mutate the synthetic demo database.
 
 ```bash
-docker run -d --name blast-pg-verify -e POSTGRES_USER=blast -e POSTGRES_PASSWORD=blast \
-  -e POSTGRES_DB=blast_main -p 55432:5432 postgres:16-alpine
-set DATABASE_URL=postgresql://blast:blast@127.0.0.1:55432/blast_main
-set MCP_AUTH_TOKEN=dev-token && npm run dev    # second shell, in packages/mcp-subject-data
-npm run smoke                                  # third shell, same env vars
+docker compose up -d --build
+cd packages/mcp-subject-data
+set DATABASE_URL=postgresql://blast:blast@127.0.0.1:5432/blast_main
+set MCP_URL=http://127.0.0.1:8080
+set MCP_AUTH_TOKEN=dev-token
+npm run smoke
 ```
 
 ## Layout
@@ -58,9 +63,9 @@ npm run smoke                                  # third shell, same env vars
 - [x] Read-only tools: `inspect_schema`, `list_foreign_keys`, `get_retention_policies`, `find_subject_data`, `snapshot_to_shadow`, `rehearse_deletion`
 - [x] Gated destructive tool: `execute_deletion` (`destructiveHint` annotation)
 - [x] Agent manifest + SDK provisioning script
-- [x] Compose stack builds and passes the 28-check smoke suite end to end
+- [x] Compose stack builds and passes the 36-check smoke suite end to end
 - [x] Runbook (`docs/runbook.md`)
-- [ ] Seed data + rehearsal runner (Nishad)
+- [x] Synthetic demo schema + deterministic Faker seed (Nishad)
 - [ ] Skill + scenarios (Amelia)
 - [ ] UI (Aarav)
 - [ ] Live TrueForge integration test (connector registration, gate firing in a real session)

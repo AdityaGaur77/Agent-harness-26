@@ -194,13 +194,39 @@ export function buildSeedRows() {
 
 async function assertRetentionPolicies(client) {
   const { rows } = await client.query(
-    "SELECT table_name, basis, retain_years FROM retention_policies ORDER BY table_name",
+    `SELECT table_name, basis, retain_years, pii_columns, anonymise_columns
+       FROM retention_policies
+      ORDER BY table_name`,
   );
   const expected = [
-    { table_name: "customers", basis: "none", retain_years: 0 },
-    { table_name: "order_items", basis: "tax", retain_years: 7 },
-    { table_name: "orders", basis: "tax", retain_years: 7 },
-    { table_name: "support_tickets", basis: "none", retain_years: 0 },
+    {
+      table_name: "customers",
+      basis: "none",
+      retain_years: 0,
+      pii_columns: ["email", "full_name", "phone"],
+      anonymise_columns: ["email", "full_name", "phone"],
+    },
+    {
+      table_name: "order_items",
+      basis: "tax",
+      retain_years: 7,
+      pii_columns: [],
+      anonymise_columns: [],
+    },
+    {
+      table_name: "orders",
+      basis: "tax",
+      retain_years: 7,
+      pii_columns: [],
+      anonymise_columns: [],
+    },
+    {
+      table_name: "support_tickets",
+      basis: "none",
+      retain_years: 0,
+      pii_columns: ["subject", "body"],
+      anonymise_columns: [],
+    },
   ];
   if (JSON.stringify(rows) !== JSON.stringify(expected)) {
     throw new Error(`Unexpected retention policies: ${JSON.stringify(rows)}`);

@@ -8,7 +8,7 @@ Two stacks run side by side:
 
 | Stack | What it is | Ports |
 |---|---|---|
-| **Blast Radius** (this repo) | Postgres holding the subject data, plus the subject-data MCP server | pg `55432`, mcp `8081` |
+| **Blast Radius** (this repo) | Primary verification DB/MCP plus synthetic demo DB/MCP | pg `55432`, verify mcp `8081`, demo mcp `8082` |
 | **TrueForge** (separate repo) | The agent harness — runs the agent, owns the approval gate | ui `8791`, pg `5433`, redis `6380` |
 
 They are deliberately on different ports; see *Ports* below for why.
@@ -35,6 +35,7 @@ Create `.env` in the repo root:
 MCP_AUTH_TOKEN=dev-token
 POSTGRES_HOST_PORT=55432
 MCP_HOST_PORT=8081
+DEMO_MCP_HOST_PORT=8082
 ```
 
 `MCP_AUTH_TOKEN` is a shared secret with two readers: the MCP server checks it
@@ -48,7 +49,8 @@ docker compose up -d --build
 docker compose ps
 ```
 
-All three services must be `Up`, with `postgres` `(healthy)`.
+The long-running Postgres, Redis, and two MCP services must be `Up`; both
+Postgres services must be healthy, and the one-shot `demo-seed` must exit `0`.
 
 Verify — this is the gate on everything downstream:
 
@@ -61,7 +63,7 @@ set MCP_URL=http://127.0.0.1:8081
 node scripts\smoke.mjs
 ```
 
-Expect **31 passed, 0 failed**.
+Expect **36 passed, 0 failed**.
 
 > `.env` is read by Docker Compose **only**. Node does not read it, so the
 > `set` lines are required. Without them the suite falls back to port 5432 and
@@ -125,7 +127,7 @@ set TRUEFORGE_BASE_URL=http://localhost:8791
 set TRUEFORGE_TOKEN=local-dev
 set MODEL_NAME=<provider>/<model>
 set MCP_AUTH_TOKEN=dev-token
-set MCP_SERVER_URL=http://host.docker.internal:8081/mcp
+set MCP_SERVER_URL=http://host.docker.internal:8082/mcp
 
 npm run provision
 ```
@@ -134,7 +136,7 @@ Two that are easy to get wrong:
 
 - **`MCP_SERVER_URL` uses `host.docker.internal`**, not `localhost`. TrueForge
   runs in a container, where `localhost` means itself. `host.docker.internal`
-  reaches your machine, which forwards 8081 to the MCP server.
+  reaches your machine, which forwards 8082 to the synthetic demo MCP server.
 - **`TRUEFORGE_BASE_URL` uses `localhost`**, because the provisioning script
   runs on your machine, not in a container.
 
@@ -148,16 +150,16 @@ lets the irreversible write run unattended.
 
 ## Part 5 — run the demo
 
-Re-seed first. The smoke suite genuinely executes a deletion, so customer 4471
-is already erased after Part 1:
+Re-seed the synthetic database first. The smoke suite operates only on
+`blast_main`, so it never mutates this demo data:
 
 ```
 cd ..\..
-docker compose exec -T postgres psql -U blast -d blast_main < packages\mcp-subject-data\scripts\fixture.sql
-docker compose exec -T postgres psql -U blast -d blast_main -c "SELECT COUNT(*) FROM orders WHERE customer_id=4471;"
+docker compose run --rm demo-seed
+docker compose exec -T demo-postgres psql -U blast -d blast_demo -c "SELECT COUNT(*) FROM orders WHERE customer_id=4471;"
 ```
 
-Expect **12**.
+Expect **8**.
 
 In the UI, start a session with the `blast-radius` agent:
 
@@ -234,10 +236,11 @@ Defaults are deliberately unusual, because the obvious ones collide:
 | Port | Why not the default |
 |---|---|
 | pg `55432` | `5432` is taken by any local Postgres install |
-| mcp `8081` | `8080` is taken by **Docker Desktop itself** (`com.docker.backend.exe`) |
+| verify mcp `8081` | `8080` is taken by **Docker Desktop itself** (`com.docker.backend.exe`) |
+| demo mcp `8082` | Kept separate so smoke verification cannot mutate demo data |
 
-Both are parameterised in `.env`. If `8081` or `55432` are also busy, change
-them there — `scripts/smoke.mjs` follows `POSTGRES_HOST_PORT` automatically.
+All are parameterised in `.env`. If a port is busy, change it there —
+`scripts/smoke.mjs` follows `POSTGRES_HOST_PORT` automatically.
 
 ## Troubleshooting
 
@@ -256,7 +259,7 @@ them there — `scripts/smoke.mjs` follows `POSTGRES_HOST_PORT` automatically.
 
 ## What to verify before trusting it
 
-1. `node scripts\smoke.mjs` → 31 passed
+1. `node scripts\smoke.mjs` → 36 passed
 2. Provisioning output lists `execute_deletion` as gated, and nothing else
 3. The connector shows all 7 tools in the UI
 4. A real session pauses for Allow/Deny before `execute_deletion`

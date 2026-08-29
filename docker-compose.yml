@@ -35,7 +35,11 @@ services:
       - demo-pgdata:/var/lib/postgresql/data
       - ./demo/seed/001-schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U blast -d blast_demo"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U blast -d blast_demo && psql -U blast -d blast_demo -tAc 'SELECT 1 FROM retention_policies LIMIT 1' | grep -qx 1",
+        ]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -57,12 +61,25 @@ services:
   mcp-server:
     build: packages/mcp-subject-data
     environment:
-      DATABASE_URL: postgresql://blast:blast@demo-postgres:5432/blast_demo
+      DATABASE_URL: postgresql://blast:blast@postgres:5432/blast_main
       SHADOW_DB_NAME: blast_shadow
       MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:?set MCP_AUTH_TOKEN in .env}
       PORT: "8080"
     ports:
       - "${MCP_HOST_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  demo-mcp-server:
+    build: packages/mcp-subject-data
+    environment:
+      DATABASE_URL: postgresql://blast:blast@demo-postgres:5432/blast_demo
+      SHADOW_DB_NAME: blast_demo_shadow
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:?set MCP_AUTH_TOKEN in .env}
+      PORT: "8080"
+    ports:
+      - "${DEMO_MCP_HOST_PORT:-8081}:8080"
     depends_on:
       demo-seed:
         condition: service_completed_successfully
