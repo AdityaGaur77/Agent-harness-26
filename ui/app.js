@@ -260,23 +260,21 @@ async function exaSearch(query, options = {}) {
 async function updateHarnessStatus() {
   const urlEl = document.getElementById("connector-url");
   const tokenEl = document.getElementById("connector-token");
-  const modelEl = document.getElementById("connector-model");
   const statusTitle = document.getElementById("harness-status-title");
   const statusCopy = document.getElementById("harness-status-copy");
   const topbarStatus = document.getElementById("topbar-status");
   const url = resolveMcpUrl();
   const tokenForStatus = resolveMcpToken();
-  const model = (modelEl?.value || "unorouter/gpt-oss-120b:free").trim();
   const isFly = url.includes("fly.dev");
-  if (statusTitle) statusTitle.textContent = isFly ? "Fly harness" : "Harness ready";
+  if (statusTitle) statusTitle.textContent = isFly ? "Remote harness" : "Local harness";
   if (statusCopy) {
     try {
-      statusCopy.textContent = `${isFly ? "Fly" : "Local"} harness at ${new URL(url).host} · 5.6 per name · ${model.split("/").pop()}`;
+      statusCopy.textContent = `${new URL(url).host} · checking connection`;
     } catch {
-      statusCopy.textContent = `${isFly ? "Fly" : "Local"} harness · 5.6 per name · ${model}`;
+      statusCopy.textContent = "Checking connection";
     }
   }
-  if (topbarStatus) topbarStatus.innerHTML = `<span aria-hidden="true"></span> ${isFly ? "Fly" : "Live"} · ${model.split("/").pop()}`;
+  if (topbarStatus) topbarStatus.innerHTML = `<span aria-hidden="true"></span>${isFly ? "Remote" : "Local"} harness`;
   localStorage.setItem("blast_mcp_url", url);
   if (tokenEl?.value) localStorage.setItem("blast_mcp_token", tokenEl.value);
   else if (tokenForStatus && tokenForStatus !== "change-me-dev-token") localStorage.setItem("blast_mcp_token", tokenForStatus);
@@ -284,10 +282,10 @@ async function updateHarnessStatus() {
   try {
     const healthUrl = new URL(url).origin + "/healthz";
     const h = await fetch(healthUrl);
-    if (h.ok && statusCopy) statusCopy.textContent += " · health 200";
-    else if (statusCopy) statusCopy.textContent += " · no health";
+    if (h.ok && statusCopy) statusCopy.textContent = "Connected. Real tools are available.";
+    else if (statusCopy) statusCopy.textContent = "Demo only. Nothing real changes.";
   } catch {
-    if (statusCopy) statusCopy.textContent += " · no health";
+    if (statusCopy) statusCopy.textContent = "Demo only. Nothing real changes.";
   }
 }
 
@@ -386,13 +384,16 @@ class AsciiAgent {
         const outer = Math.abs(ellipse - orbit);
         const innerR = 0.36 - pulse * 0.28;
         const inner = Math.abs(ellipse - innerR);
+        const middle = Math.abs(ellipse - (0.55 + pulse * 0.45));
         const scanWave = Math.sin(x * 3.8 + this.phase * 1.4) * 0.07;
         const scanner = Math.abs(y - scanWave);
         let character = " ";
 
-        if (outer < 0.02) {
+        if (outer < (this.home ? 0.03 : 0.02)) {
           character = this.orbitCharacter(angle);
-        } else if (inner < 0.016 && this.state !== "question") {
+        } else if (this.home && middle < 0.014) {
+          character = Math.sin(angle * 5 + this.phase * 0.65) > -0.1 ? "·" : " ";
+        } else if (inner < (this.home ? 0.022 : 0.016) && this.state !== "question") {
           const innerPulse = Math.sin(angle * 4 - this.phase * 1.1);
           character = innerPulse > 0.18 ? "·" : " ";
         }
@@ -456,6 +457,9 @@ class AsciiAgent {
     const label = labels[this.state];
     const row = Math.round(centerY);
     const start = Math.max(0, Math.round(centerX - label.length / 2));
+    for (let column = Math.max(0, start - 2); column < Math.min(this.columns, start + label.length + 2); column += 1) {
+      grid[row][column] = " ";
+    }
     for (let index = 0; index < label.length && start + index < this.columns; index += 1) {
       grid[row][start + index] = label[index];
     }
@@ -464,23 +468,30 @@ class AsciiAgent {
       const sublabel = this.state === "idle" ? "your data, under your direction" : stateCopy[this.state].title.toLowerCase();
       const clean = sublabel.slice(0, this.columns - 4);
       const subStart = Math.max(0, Math.round(centerX - clean.length / 2));
+      for (let column = Math.max(0, subStart - 2); column < Math.min(this.columns, subStart + clean.length + 2); column += 1) {
+        grid[row + 2][column] = " ";
+      }
       for (let index = 0; index < clean.length && subStart + index < this.columns; index += 1) {
         grid[row + 2][subStart + index] = clean[index];
       }
     }
 
     if (this.home && this.state === "idle" && row + 4 < this.rows) {
-      const meta = "5.6 traces per name  ·  cream  ·  lavender";
+      const meta = "public web  ·  brokers  ·  linked records";
       const mStart = Math.max(0, Math.round(centerX - meta.length / 2));
+      for (let column = Math.max(0, mStart - 2); column < Math.min(this.columns, mStart + meta.length + 2); column += 1) {
+        grid[row + 4][column] = " ";
+      }
       for (let i = 0; i < meta.length && mStart + i < this.columns; i += 1) {
-        if (grid[row + 4][mStart + i] === " ") grid[row + 4][mStart + i] = meta[i];
+        grid[row + 4][mStart + i] = meta[i];
       }
     }
   }
 }
 
-const homeAscii = new AsciiAgent($("#home-ascii"), { columns: 72, rows: 17, home: true });
-const agentAscii = new AsciiAgent($("#agent-ascii"), { columns: 42, rows: 14 });
+const homeAscii = new AsciiAgent($("#home-ascii"), { columns: 112, rows: 25, home: true });
+const agentAscii = new AsciiAgent($("#agent-ascii"), { columns: 60, rows: 15 });
+const sidebarAscii = new AsciiAgent($("#sidebar-ascii"), { columns: 32, rows: 7 });
 
 function animateView(view) {
   view.classList.remove("is-entering");
@@ -565,6 +576,7 @@ function setRunState(nextState) {
   progressFill.style.width = copy.progress + "%";
   progressTrack.setAttribute("aria-valuenow", String(copy.progress));
   agentAscii.setState(nextState);
+  sidebarAscii.setState(nextState);
   homeAscii.setState(nextState === "complete" ? "complete" : nextState === "error" ? "error" : "idle");
   runAnnouncement.textContent = copy.aria;
   activitySummary.textContent = copy.title;
@@ -578,7 +590,7 @@ function setRunState(nextState) {
       '<span class="status-check" aria-hidden="true">✓</span>Say delete and I clear what the law allows.';
   } else {
     composerStatus.innerHTML =
-      '<span class="status-dot is-ready" aria-hidden="true"></span>I work alone unless I need you.';
+      '<span class="status-dot is-ready" aria-hidden="true"></span>I’ll keep going inside your scope.';
   }
 }
 
@@ -593,6 +605,8 @@ function setStep(stepName, status) {
   if (!step) return;
   step.classList.toggle("is-active", status === "active");
   step.classList.toggle("is-complete", status === "complete");
+  const token = $(".run-step-token", step);
+  if (token) token.textContent = { waiting: "[ ]", active: "[>]", complete: "[x]" }[status];
   const label = $("em", step);
   if (label) label.textContent = { waiting: "Waiting", active: "Working", complete: "Done" }[status];
 }
@@ -601,6 +615,8 @@ function resetSteps() {
   $$(".run-step").forEach((step, index) => {
     step.classList.toggle("is-active", index === 0);
     step.classList.remove("is-complete");
+    const token = $(".run-step-token", step);
+    if (token) token.textContent = index === 0 ? "[>]" : "[ ]";
     $("em", step).textContent = index === 0 ? "Working" : "Waiting";
   });
 }
@@ -610,6 +626,8 @@ function setSubagentState(key, status, label) {
   if (!item) return;
   item.classList.toggle("is-active", status === "active");
   item.classList.toggle("is-done", status === "done");
+  const signal = $(".agent-signal", item);
+  if (signal) signal.textContent = { ready: "[ ]", active: "[>]", done: "[x]" }[status];
   $("small", item).textContent = label || { ready: "Ready", active: "Working", done: "Done" }[status];
   const active = $$(".parallel-grid > .is-active").length;
   subagentCount.textContent = active + " of " + subagentPlan.length + " active";
@@ -618,7 +636,7 @@ function setSubagentState(key, status, label) {
 function resetSubagents() {
   subagentPlan.forEach((agent) => setSubagentState(agent.key, "ready"));
   subagentList.hidden = true;
-  subagentCount.textContent = "0 of 4 active";
+  subagentCount.textContent = "0 of 5 active";
 }
 
 function renderEvidence(limit = 2, complete = false) {
@@ -657,7 +675,7 @@ function renderRealEvidence(tablesWithData) {
   evidenceList.textContent = "";
   if (!tablesWithData || tablesWithData.length === 0) {
     const empty = document.createElement("article");
-    empty.innerHTML = '<span class="source-mark" aria-hidden="true">—</span><div><strong>No linked rows found</strong><small>Real data from Postgres</small></div><em>0</em>';
+    empty.innerHTML = '<span class="source-mark" aria-hidden="true">[ ]</span><div><strong>No linked rows found</strong><small>Real data from Postgres</small></div><em>0</em>';
     evidenceList.append(empty);
     return;
   }
@@ -732,8 +750,10 @@ function appendAgentMessage(text) {
 function scrollConversation(target) {
   requestAnimationFrame(() => {
     if (target) {
-      const centeredTop = target.offsetTop - (conversationScroll.clientHeight - target.offsetHeight) * 0.5;
-      conversationScroll.scrollTo({ top: Math.max(0, centeredTop), behavior: "smooth" });
+      const targetTop = target === identityQuestion
+        ? target.offsetTop + target.offsetHeight + 24 - conversationScroll.clientHeight
+        : target.offsetTop - 128;
+      conversationScroll.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
     } else {
       conversationScroll.scrollTo({ top: conversationScroll.scrollHeight, behavior: "smooth" });
     }
@@ -764,6 +784,7 @@ function resetMission(options = {}) {
   run.waitingForLocation = false;
   body.classList.remove("is-paused", "is-complete");
   agentAscii.setPaused(false);
+  sidebarAscii.setPaused(false);
   pauseButton.disabled = false;
   pauseButton.innerHTML =
     '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5v10M13 5v10" /></svg><span>Pause</span>';
@@ -805,7 +826,7 @@ async function startMission(prompt) {
   setRunState("reasoning");
   startTimer();
   const govExtract = extractGovNameFromPrompt(cleanPrompt);
-  const govNote = govExtract ? ` — gov name "${govExtract}"` : "";
+  const govNote = govExtract ? `, gov name "${govExtract}"` : "";
   appendAudit("Started", `Request understood${govNote}`);
 
   if (!(await waitFor(650, generation))) return;
@@ -897,7 +918,7 @@ async function continueAutonomousRun() {
       // Try real schema/tools
       const schema = await mcpTool(harnessUrl, harnessToken, "inspect_schema", {});
       const tables = schema?.tables?.length || 7;
-      appendAudit("Tool", `inspect_schema mapped ${tables} related tables` + (lookup ? ` — matched ${match.full_name}` : ""));
+      appendAudit("Tool", `inspect_schema mapped ${tables} related tables` + (lookup ? `, matched ${match.full_name}` : ""));
       if (!(await waitFor(440, generation))) return;
       setSubagentState("brokers", "done");
       const fks = await mcpTool(harnessUrl, harnessToken, "list_foreign_keys", {});
@@ -1048,6 +1069,7 @@ function togglePause() {
   run.paused = !run.paused;
   body.classList.toggle("is-paused", run.paused);
   agentAscii.setPaused(run.paused);
+  sidebarAscii.setPaused(run.paused);
   if (run.paused) {
     pauseButton.innerHTML =
       '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 5 8 5-8 5Z" /></svg><span>Resume</span>';
@@ -1060,7 +1082,7 @@ function togglePause() {
       '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5v10M13 5v10" /></svg><span>Pause</span>';
     missionStatus.textContent = stateCopy[run.state].mission;
     composerStatus.innerHTML =
-      '<span class="status-dot is-ready" aria-hidden="true"></span>I work alone unless I need you.';
+      '<span class="status-dot is-ready" aria-hidden="true"></span>I’ll keep going inside your scope.';
     runAnnouncement.textContent = "Resumed";
   }
 }
@@ -1191,14 +1213,6 @@ agentForm.addEventListener("submit", (event) => {
 
   appendAgentMessage("Got it. I use that while I keep work.");
   appendAudit("Updated", "You changed the plan");
-});
-
-$$("[data-starter-prompt]").forEach((button) => {
-  button.addEventListener("click", () => {
-    homePrompt.value = button.dataset.starterPrompt;
-    resizeTextarea(homePrompt);
-    homePrompt.focus();
-  });
 });
 
 $$("[data-home-panel-target]").forEach((button) => {
