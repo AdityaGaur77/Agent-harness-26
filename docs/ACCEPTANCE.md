@@ -157,9 +157,9 @@ resolved.
 
 | PR | Title | State | Qodo High findings |
 |---|---|---|---|
-| [#1](https://github.com/AdityaGaur77/Agent-harness-26/pull/1) | MCP server, approval gate, and agent provisioning | Closed (superseded, not merged) | `<<QODO_PR1_STATUS>>` |
-| [#6](https://github.com/AdityaGaur77/Agent-harness-26/pull/6) | Add synthetic demo database baseline | Open | `<<QODO_PR6_STATUS>>` |
-| [#14](https://github.com/AdityaGaur77/Agent-harness-26/pull/14) | Skill, acceptance script, README, submission docs (consolidated from closed #8-13) | Open | `<<QODO_PR14_STATUS>>` |
+| [#1](https://github.com/AdityaGaur77/Agent-harness-26/pull/1) | MCP server, approval gate, and agent provisioning | Closed (superseded, not merged) | No Qodo review occurred; closed same day it opened, before one could run |
+| [#6](https://github.com/AdityaGaur77/Agent-harness-26/pull/6) | Add synthetic demo database baseline | Open | Not yet reviewed by Qodo. The `/review` comment on this PR triggered GitHub's own `copilot-pull-request-reviewer`, not Qodo. Comment `/agentic_review` to trigger the correct tool. |
+| [#14](https://github.com/AdityaGaur77/Agent-harness-26/pull/14) | Skill, acceptance script, README, submission docs (consolidated from closed #8-13) | Open | 1 High + 2 Medium found, all fixed in commit `1771ae1`, confirmed `✓ Resolved` by Qodo's follow-up pass. No dismissals. |
 
 Update this table as PRs open, merge, or close. Before submission, every row
 for a merged PR must show either "no High findings" or a fixed/dismissed

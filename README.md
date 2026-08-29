@@ -152,14 +152,31 @@ measured, not predicted.
 
 ## Qodo Code Review Evidence
 
-Representative merged PR with meaningful hackathon code:
-`<<MERGED_PR_LINK>>`
+Representative PR with meaningful hackathon code:
+[#14](https://github.com/AdityaGaur77/Agent-harness-26/pull/14). Reviewed by
+Qodo; merge is pending team sign-off, so this link will be replaced with a
+merged PR before submission (`<<MERGED_PR_LINK>>` if #14 itself isn't the
+one that ends up merged).
 
-What Qodo surfaced and what we changed or dismissed:
-`<<QODO_FINDING_SUMMARY: one or two sentences once a review has run>>`
+What Qodo surfaced and what we changed: one High finding, the README's short
+setup ran `npm run provision` right after editing the Compose `.env`, but
+the provisioning script reads environment variables directly from the shell
+and never loads that file, so a clean-clone run following the README
+verbatim would fail before creating the agent. Two Medium findings: a claim
+that provisioning prints a list of gated tools (it doesn't; fixed to point
+at `requireApprovalForTools` in the manifest instead), and an internal
+inconsistency in the blog post's blast-radius counts (it named two different
+numbers for the same fixture; fixed to the number the fixture actually
+seeds). All three were fixed, not dismissed.
 
 PR history showing the completed review, our decisions, and a follow-up
-review against the final code: `<<QODO_PR_HISTORY_LINK>>`
+review against the final code: all on
+[#14](https://github.com/AdityaGaur77/Agent-harness-26/pull/14) itself.
+Qodo's initial review posted the three findings above as inline PR review
+comments; each was replied to in its own thread explaining the fix and
+citing the commit; the fix landed in one follow-up commit; Qodo's own
+persistent review comment then auto-updated to mark all three
+`✓ Resolved` against that commit, with no new findings raised.
 
 See `docs/ACCEPTANCE.md`'s Qodo sweep table for the status of every PR's
 High-severity findings; every merged PR must show each one fixed or
