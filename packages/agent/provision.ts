@@ -2,15 +2,35 @@ import { readFileSync } from "node:fs";
 import { TrueForge, TrueForgeError } from "@truefoundry/trueforge-sdk";
 import type { TrueForgeApi } from "@truefoundry/trueforge-sdk";
 
+function parseKeyList(raw?: string): string[] {
+  if (!raw) return [];
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+function getRotatingKeys(...names: string[]): string[] {
+  for (const n of names) {
+    const list = parseKeyList(process.env[n]);
+    if (list.length) return list;
+  }
+  return [];
+}
+
+function hasAnyKey(names: string[]): boolean {
+  return names.some((n) => parseKeyList(process.env[n]).length > 0);
+}
+
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
-  if (!value) {
-    throw new Error(
-      `Missing required environment variable: ${name}. ` +
-        `Copy .env.example to .env and fill it in before provisioning.`,
-    );
+  if (value) return value;
+  // fallback: try rotating model/key lists before throwing
+  if (name === "MODEL_NAME") {
+    const fallbacks = parseKeyList(process.env.MODEL_NAMES);
+    if (fallbacks[0]) return fallbacks[0];
   }
-  return value;
+  throw new Error(
+    `Missing required environment variable: ${name}. ` +
+      `Copy .env.example to .env and fill it in before provisioning.`,
+  );
 }
 
 interface ManifestFile extends Omit<TrueForgeApi.AgentSpec, "model"> {
@@ -18,12 +38,31 @@ interface ManifestFile extends Omit<TrueForgeApi.AgentSpec, "model"> {
   model: TrueForgeApi.Model;
 }
 
+function isFreeModel(model: string): boolean {
+  const id = model.includes("/") ? model.split("/").slice(1).join("/") : model;
+  return /:free$/.test(id);
+}
+
 async function main(): Promise<void> {
   const baseUrl = process.env.TRUEFORGE_BASE_URL?.trim() || "http://localhost:8791";
   const token = requiredEnv("TRUEFORGE_TOKEN");
-  const modelName = requiredEnv("MODEL_NAME");
+  let modelName = requiredEnv("MODEL_NAME");
+  if (!isFreeModel(modelName)) {
+    throw new Error(`Only free models (:free suffix) allowed. Got MODEL_NAME=${modelName}`);
+  }
+  // validate fallbacks too
+  for (const m of parseKeyList(process.env.MODEL_NAMES)) {
+    if (!isFreeModel(m)) throw new Error(`Only free models allowed in MODEL_NAMES, got ${m}`);
+  }
   const mcpServerUrl = process.env.MCP_SERVER_URL?.trim() || "http://mcp-server:8080/mcp";
   const mcpAuthToken = requiredEnv("MCP_AUTH_TOKEN");
+
+  // log rotating keys status (masked)
+  const geminiKeys = getRotatingKeys("GEMINI_API_KEYS");
+  const unoKeys = getRotatingKeys("UNOROUTER_API_KEYS");
+  console.log(`[keys] gemini: ${geminiKeys.length} key(s), unorouter: ${unoKeys.length} key(s)`);
+  if (unoKeys[0]) console.log(`[keys] unorouter primary: ${unoKeys[0].slice(0, 6)}...${unoKeys[0].slice(-4)}`);
+  if (geminiKeys[0]) console.log(`[keys] gemini primary: ${geminiKeys[0].slice(0, 6)}...${geminiKeys[0].slice(-4)}`);
 
   const manifestPath = new URL("./agent.manifest.json", import.meta.url);
   const file = JSON.parse(readFileSync(manifestPath, "utf8")) as ManifestFile;

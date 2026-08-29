@@ -115,7 +115,14 @@ async function main() {
     exAnn.destructiveHint === true && exAnn.readOnlyHint === false,
     JSON.stringify(exAnn),
   );
-  check("exactly one destructive tool registered", tools.tools.length === 7, `count=${tools.tools.length}`);
+  check("exactly one destructive tool registered", tools.tools.length >= 7 && tools.tools.filter((t) => t.annotations?.destructiveHint).length === 1, `count=${tools.tools.length}`);
+
+  if (byName.lookup_subject_by_name) {
+    const ann = byName.lookup_subject_by_name.annotations ?? {};
+    check("lookup_subject_by_name is annotated READ_ONLY", ann.readOnlyHint === true && ann.destructiveHint === false, JSON.stringify(ann));
+    const lookup = payload(await client.callTool({ name: "lookup_subject_by_name", arguments: { full_name: "Jane Q Synthetic" } }));
+    check("lookup by gov name finds 4471", (lookup.matches ?? []).some((m) => Number(m.id) === 4471), JSON.stringify(lookup.matches));
+  }
 
   const schema = payload(await client.callTool({ name: "inspect_schema", arguments: {} }));
   check(
@@ -266,8 +273,88 @@ async function main() {
     revised.production_touched === false,
   );
 
+  // The gate stops for a human, but the human approves a plan they were SHOWN.
+  // In a real run the compliant plan hit a validation error, the agent fell
+  // back to a smaller unrehearsed plan, and execute_deletion ran it —
+  // destroying the tax rows the rehearsal had just protected. These check that
+  // an unrehearsed or substituted plan can no longer reach production.
+  const naiveSubstitute = {
+    subject_id: 4471,
+    steps: [{ table: "customers", action: "hard_delete", where: "id = :subject_id" }],
+  };
+
+  const noToken = await client.callTool({
+    name: "execute_deletion",
+    arguments: { plan: naiveSubstitute, execution_token: "rehearsed_made-up" },
+  });
+  check(
+    "execute_deletion refuses a plan with no clean rehearsal on record",
+    noToken.isError === true,
+    JSON.stringify(noToken).slice(0, 200),
+  );
+
+  await client.callTool({ name: "snapshot_to_shadow", arguments: {} });
+  admin = await reconnectAdminIfDropped(admin);
+  const cleanRun = payload(
+    await client.callTool({
+      name: "rehearse_deletion",
+      arguments: { plan: revisedPlan },
+    }),
+  );
+  check(
+    "a clean rehearsal issues an execution token",
+    typeof cleanRun.execution_token === "string" && cleanRun.execution_token.length > 0,
+    JSON.stringify(cleanRun.execution_token),
+  );
+
+  const swapped = await client.callTool({
+    name: "execute_deletion",
+    arguments: { plan: naiveSubstitute, execution_token: cleanRun.execution_token },
+  });
+  check(
+    "a valid token cannot be redeemed against a DIFFERENT plan",
+    swapped.isError === true,
+    JSON.stringify(swapped).slice(0, 200),
+  );
+
+  const stillThere = await admin.query(
+    "SELECT COUNT(*)::int AS n FROM orders WHERE customer_id = 4471",
+  );
+  check(
+    "production untouched by the refused executions",
+    stillThere.rows[0].n === 12,
+    `orders=${stillThere.rows[0].n}`,
+  );
+
+  // An illegal plan must not even be offered a token.
+  await client.callTool({ name: "snapshot_to_shadow", arguments: {} });
+  admin = await reconnectAdminIfDropped(admin);
+  const illegal = payload(
+    await client.callTool({
+      name: "rehearse_deletion",
+      arguments: { plan: naivePlan },
+    }),
+  );
+  check(
+    "an illegal rehearsal issues NO execution token",
+    illegal.summary.would_be_illegal === true && !illegal.execution_token,
+    `would_be_illegal=${illegal.summary.would_be_illegal} token=${illegal.execution_token}`,
+  );
+
+  await client.callTool({ name: "snapshot_to_shadow", arguments: {} });
+  admin = await reconnectAdminIfDropped(admin);
+  const approved = payload(
+    await client.callTool({
+      name: "rehearse_deletion",
+      arguments: { plan: revisedPlan },
+    }),
+  );
+
   const executed = payload(
-    await client.callTool({ name: "execute_deletion", arguments: { plan: revisedPlan } }),
+    await client.callTool({
+      name: "execute_deletion",
+      arguments: { plan: revisedPlan, execution_token: approved.execution_token },
+    }),
   );
   check("execute_deletion commits approved plan in production", executed.executed === true, JSON.stringify(executed));
 
