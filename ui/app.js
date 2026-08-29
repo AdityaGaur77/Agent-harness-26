@@ -70,52 +70,52 @@ const RUN_STATES = [
 const stateCopy = {
   idle: {
     title: "Ready",
-    detail: "You tell me what to find.",
+    detail: "Describe what to find.",
     mission: "Ready",
     progress: 0,
     aria: "The agent is ready",
   },
   reasoning: {
-    title: "I sort your request",
-    detail: "I decide what to look for.",
-    mission: "I sort your request",
+    title: "Sorting your request",
+    detail: "Deciding what to look for.",
+    mission: "Sorting your request",
     progress: 8,
-    aria: "The agent sorts the request",
+    aria: "The request is being sorted",
   },
   question: {
-    title: "Needs you",
-    detail: "One answer keeps the search focused on you.",
+    title: "Needs confirmation",
+    detail: "One answer keeps the search focused on the right person.",
     mission: "Needs one detail",
     progress: 24,
-    aria: "The agent needs one answer",
+    aria: "One answer is needed",
   },
   searching: {
-    title: "I review your sources",
-    detail: "I check brokers, records, and linked accounts.",
-    mission: "I review your sources",
+    title: "Reviewing sources",
+    detail: "Checking brokers, records, and linked accounts.",
+    mission: "Reviewing sources",
     progress: 48,
-    aria: "The agent reviews your sources",
+    aria: "Sources are being reviewed",
   },
   rehearsing: {
-    title: "I review the changes",
-    detail: "I check what will change before I act.",
-    mission: "I review what can change",
+    title: "Reviewing changes",
+    detail: "Checking what will change before anything happens.",
+    mission: "Reviewing possible changes",
     progress: 70,
-    aria: "The agent reviews what can change",
+    aria: "Possible changes are being reviewed",
   },
   executing: {
-    title: "I apply your choices",
-    detail: "I make only the changes you approve.",
-    mission: "I apply your choices",
+    title: "Applying approved choices",
+    detail: "Only approved changes are applied.",
+    mission: "Applying approved choices",
     progress: 86,
-    aria: "The agent deletes what you allow",
+    aria: "Approved changes are being applied",
   },
   monitoring: {
-    title: "I check the result",
-    detail: "I count what changed and what stays.",
-    mission: "I check the result",
+    title: "Checking the result",
+    detail: "Counting what changed and what stays.",
+    mission: "Checking the result",
     progress: 95,
-    aria: "The agent checks the result",
+    aria: "The result is being checked",
   },
   complete: {
     title: "Ready to review",
@@ -126,10 +126,10 @@ const stateCopy = {
   },
   error: {
     title: "Paused with care",
-    detail: "I stopped before I changed anything.",
+    detail: "Nothing changed.",
     mission: "Paused with care",
     progress: 100,
-    aria: "The agent stopped before it changed anything",
+    aria: "Nothing changed",
   },
 };
 
@@ -940,13 +940,13 @@ function setRunState(nextState) {
 
   if (nextState === "question") {
     composerStatus.innerHTML =
-      '<span class="status-dot is-waiting" aria-hidden="true"></span>Answer and I continue.';
+      '<span class="status-dot is-waiting" aria-hidden="true"></span>Answer provided. The request will continue.';
   } else if (nextState === "complete") {
     composerStatus.innerHTML =
       '<span class="status-check" aria-hidden="true">✓</span>Your request is ready for approval.';
   } else {
     composerStatus.innerHTML =
-      "<span class=\"status-dot is-ready\" aria-hidden=\"true\"></span>I'll keep working on your request.";
+      '<span class="status-dot is-ready" aria-hidden="true"></span>The request will continue.';
   }
 }
 
@@ -1059,7 +1059,7 @@ function showServiceError(message = "Check your connection, then try again.") {
   setRunState("error");
   clearUnavailableDetails();
   impactState.textContent = "Service unavailable";
-  impactCopy.textContent = "I couldn't reach the service. Please try again.";
+  impactCopy.textContent = "The service could not be reached. Please try again.";
   const errorElement = $("#service-error");
   const detail = $("#service-error-detail");
   if (detail) detail.textContent = message;
@@ -1199,10 +1199,10 @@ function resetMission(options = {}) {
 
 function titleFromPrompt(prompt) {
   const normalized = prompt.toLowerCase();
-  if (normalized.includes("address")) return "Check my address";
-  if (normalized.includes("email")) return "Check my email";
+  if (normalized.includes("address")) return "Check an address";
+  if (normalized.includes("email")) return "Check an email";
   if (normalized.includes("broker") || normalized.includes("opt out") || normalized.includes("clear broker")) return "Clear broker sites";
-  return "Clear my personal info";
+  return "Clear personal information";
 }
 
 async function startMission(prompt) {
@@ -1271,8 +1271,8 @@ async function continueAutonomousRun(identityInput = "") {
   const resolvedGov = resolveGovInput(gov || identityInput);
   if (!resolvedGov || !resolvedGov.displayName) {
     setRunState("question");
-    appendAgentMessage("I need your full name before I search. That keeps the results on you.");
-    agentPrompt.placeholder = "Enter the full name you want me to check";
+    appendAgentMessage("A full name is needed before searching. This keeps results focused on the right person.");
+    agentPrompt.placeholder = "Enter the full name for the search";
     agentPrompt.focus();
     run.waitingForLocation = true;
     run.pendingQuestion = "name";
@@ -1355,7 +1355,7 @@ async function continueAutonomousRun(identityInput = "") {
       setStep("check", "active");
       setRunState("rehearsing");
       impactState.textContent = "Reviewing";
-      impactCopy.textContent = `I found ${total} connected ${total === 1 ? "record" : "records"}. I'll show you what can change.`;
+      impactCopy.textContent = `Found ${total} connected ${total === 1 ? "record" : "records"}. Possible changes are shown below.`;
       appendAudit("Review", "Checked which records can be changed");
       appendAudit("Review", `Found ${total} connected records` + (tablesWithData.length ? ` across ${tablesWithData.length} sources` : ""));
       appendAudit("Review", "Prepared a change review");
@@ -1383,7 +1383,7 @@ async function continueAutonomousRun(identityInput = "") {
   if (liveData?.naive) {
     const v = liveData.naive.retention_violations?.length || 0;
     const r = liveData.naive.summary?.total_rows_removed || 0;
-    impactCopy.textContent = `Some records need a different treatment before they can be removed. I'll prepare those changes for review.`;
+    impactCopy.textContent = `Some records need a different treatment before they can be removed. Changes will be prepared for review.`;
     appendAudit("Review", `Found ${v} groups that need a different treatment across ${r} records.`);
   }
 
@@ -1415,15 +1415,15 @@ async function continueAutonomousRun(identityInput = "") {
     run.liveData = liveData;
   } catch (error) {
     console.error(error);
-    showServiceError("I couldn't prepare your request. Please try again.");
-    appendAudit("Error", "I couldn't prepare your request. Please try again.");
+    showServiceError("The request could not be prepared. Please try again.");
+    appendAudit("Error", "The request could not be prepared. Please try again.");
     return;
   }
   setStep("check", "complete");
 
   if (!standingAuthorization.erase) {
     setRunState("question");
-    appendAgentMessage("Your review is ready. Approve the changes you'd like me to make.");
+    appendAgentMessage("The review is ready. Approve the changes to apply.");
     return;
   }
 
@@ -1475,16 +1475,16 @@ function togglePause() {
   if (run.paused) {
     pauseButton.innerHTML =
       '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 5 8 5-8 5Z" /></svg><span>Resume</span>';
-    missionStatus.textContent = "Paused. You say when to go.";
+    missionStatus.textContent = "Paused. Resume when ready.";
     composerStatus.innerHTML =
-      '<span class="status-dot" aria-hidden="true"></span>Paused. You can still change the plan.';
+      '<span class="status-dot" aria-hidden="true"></span>Paused. The plan can still be changed.';
     runAnnouncement.textContent = "Paused";
   } else {
     pauseButton.innerHTML =
       '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5v10M13 5v10" /></svg><span>Pause</span>';
     missionStatus.textContent = stateCopy[run.state].mission;
     composerStatus.innerHTML =
-      "<span class=\"status-dot is-ready\" aria-hidden=\"true\"></span>I'll keep working on your request.";
+      '<span class="status-dot is-ready" aria-hidden="true"></span>The request will continue.';
     runAnnouncement.textContent = "Resumed";
   }
 }
@@ -1540,7 +1540,7 @@ async function handleDeleteAction({ recordMessage = true } = {}) {
   if (run.state !== "complete") return;
   const liveData = run.liveData;
   if (!liveData?.safePlan) {
-    appendAgentMessage("I can't make changes until your request is ready for approval.");
+    appendAgentMessage("Changes cannot be made until the request is ready for approval.");
     return;
   }
   const btn = $("#delete-action");
@@ -1549,8 +1549,8 @@ async function handleDeleteAction({ recordMessage = true } = {}) {
     btn.disabled = true;
   }
   if (recordMessage) appendUserMessage("Delete what you can.");
-    appendAgentMessage("I'll remove only the information you approved.");
-  appendAudit("Approved", "You approved these changes.");
+    appendAgentMessage("Only the approved information will be removed.");
+  appendAudit("Approved", "Changes approved.");
   try {
     const result = await mcpTool(resolveMcpUrl(), resolveMcpToken(), "execute_deletion", { plan: liveData.safePlan });
     if (result?.executed !== true) throw new Error("The service could not complete the request");
@@ -1562,8 +1562,8 @@ async function handleDeleteAction({ recordMessage = true } = {}) {
     console.error(error);
     setRunState("error");
     clearUnavailableDetails();
-    appendAudit("Error", "I couldn't complete your request. Please try again.");
-    appendAgentMessage("I stopped before changing anything because the service could not complete your request.");
+    appendAudit("Error", "The request could not be completed. Please try again.");
+    appendAgentMessage("No changes were made because the service could not complete the request.");
     if (btn) {
       btn.disabled = false;
       btn.textContent = "Try again";
@@ -1600,14 +1600,14 @@ agentForm.addEventListener("submit", (event) => {
     run.pendingQuestion = null;
     identityQuestion.hidden = true;
     appendAgentMessage(pendingQuestion === "location"
-      ? "I'll use that location to narrow the match, then ask for your full name."
-      : "I'll use that name to keep the search focused on you.");
+      ? "That location will narrow the match, then a full name will be requested."
+      : "That name will keep the search focused on the right person.");
     continueAutonomousRun(pendingQuestion === "name" ? message : "");
     return;
   }
 
-  appendAgentMessage("Got it. I use that while I keep work.");
-  appendAudit("Updated", "You changed the plan");
+  appendAgentMessage("The request has been updated and will continue.");
+  appendAudit("Updated", "Plan updated.");
 });
 
 $$("[data-home-panel-target]").forEach((button) => {
@@ -1640,15 +1640,15 @@ $$("[data-identity-answer]").forEach((button) => {
   button.addEventListener("click", () => {
     const answer = button.dataset.identityAnswer;
     if (answer === "yes") {
-      appendUserMessage("Yes, that's me.");
+      appendUserMessage("Yes, that's the right match.");
       continueAutonomousRun();
     } else {
-      appendUserMessage("No, that isn't me.");
+      appendUserMessage("No, that's not the right match.");
       run.waitingForLocation = true;
       run.pendingQuestion = "location";
       identityQuestion.hidden = true;
       setRunState("question");
-      appendAgentMessage("What city or state should I use instead?");
+      appendAgentMessage("Which city or state should be used instead?");
       agentPrompt.placeholder = "Enter the city or state that belongs to you";
       agentPrompt.focus();
     }
