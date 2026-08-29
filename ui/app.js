@@ -4,6 +4,11 @@ const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)]
 const EXA_API_KEY = "c6e0f170-8d73-4029-b3ed-7c7e30bd80ba";
 
 const body = document.body;
+const skipLink = $(".skip-link");
+const landingView = $("#landing-view");
+const landingAscii = $("#landing-ascii");
+const enterAgentButton = $("#enter-agent");
+const appShell = $("#app-shell");
 const homeView = $("#home-view");
 const agentView = $("#agent-view");
 const homeForm = $("#home-form");
@@ -43,6 +48,9 @@ const sidebarClose = $("#sidebar-close");
 const connectorDialog = $("#connector-dialog");
 const connectorResult = $("#connector-result");
 const identityDialog = $("#identity-dialog");
+
+const VIEW_TRANSITION_MS = 320;
+const ENTRY_STORAGE_KEY = "blast_radius_has_entered";
 
 const RUN_STATES = [
   "idle",
@@ -313,11 +321,17 @@ class AsciiAgent {
     this.velocity = 0;
     this.target = 0;
     this.paused = false;
+    this.active = true;
     this.lastFrame = 0;
     this.frameInterval = 1000 / 12;
     this.boundTick = this.tick.bind(this);
     this.prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    requestAnimationFrame(this.boundTick);
+    document.addEventListener("visibilitychange", () => {
+      if (this.active && !this.prefersReduced && document.visibilityState === "visible" && !this.rafId) {
+        this.rafId = requestAnimationFrame(this.boundTick);
+      }
+    });
+    this.rafId = requestAnimationFrame(this.boundTick);
   }
 
   setState(nextState) {
@@ -325,10 +339,22 @@ class AsciiAgent {
     this.state = nextState;
     this.target = RUN_STATES.indexOf(nextState) / (RUN_STATES.length - 1);
     this.element.setAttribute("aria-label", stateCopy[nextState].aria);
+    if (this.prefersReduced && this.active) this.render();
   }
 
   setPaused(paused) {
     this.paused = paused;
+  }
+
+  setActive(active) {
+    this.active = Boolean(active);
+    if (!this.active) {
+      if (this.rafId) cancelAnimationFrame(this.rafId);
+      this.rafId = 0;
+      return;
+    }
+    this.render();
+    if (!this.prefersReduced && !this.rafId) this.rafId = requestAnimationFrame(this.boundTick);
   }
 
   springStep(target, dt) {
@@ -341,14 +367,19 @@ class AsciiAgent {
   }
 
   tick(timestamp) {
-    requestAnimationFrame(this.boundTick);
-    if (timestamp - this.lastFrame < this.frameInterval) return;
+    this.rafId = 0;
+    if (!this.active || this.prefersReduced || document.visibilityState !== "visible") return;
+    if (timestamp - this.lastFrame < this.frameInterval) {
+      this.rafId = requestAnimationFrame(this.boundTick);
+      return;
+    }
     const elapsed = this.lastFrame ? Math.min((timestamp - this.lastFrame) / 1000, 0.1) : 1 / 12;
     this.lastFrame = timestamp;
     this.springStep(this.target, elapsed);
     if (!this.paused && !this.prefersReduced) this.phase += elapsed * this.stateSpeed();
     else if (this.paused) this.phase += elapsed * this.stateSpeed() * 0.08;
     this.render();
+    this.rafId = requestAnimationFrame(this.boundTick);
   }
 
   stateSpeed() {
@@ -489,22 +520,324 @@ class AsciiAgent {
   }
 }
 
+const HORSE_FRAME_COUNT = 11;
+const HORSE_FPS = 12;
+const HORSE_FRAME_MS = 1000 / HORSE_FPS;
+const HORSE_REPEL_RADIUS = 110;
+const HORSE_REPEL_STRENGTH = 0.3;
+const HORSE_APPEAR_FADE_MS = 150;
+const HORSE_APPEAR_GAP_MS = 1250;
+const HORSE_EDGE_BOOST = 1.65;
+const HORSE_EDGE_WEIGHT = 0.75;
+const HORSE_EDGE_THRESHOLD = 2;
+const HORSE_RAMP = " .'`^,:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$";
+const HORSE_FRAME_URLS = Array.from(
+  { length: HORSE_FRAME_COUNT },
+  (_, index) => `./assets/horse/frame-${String(index + 1).padStart(2, "0")}.webp`,
+);
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+class HorseAsciiAgent {
+  constructor(element) {
+    this.element = element;
+    this.context = element.getContext("2d", { alpha: true });
+    this.offscreen = document.createElement("canvas");
+    this.offscreenContext = this.offscreen.getContext("2d", { willReadFrequently: true });
+    this.frames = [];
+    this.columns = 120;
+    this.rows = 75;
+    this.width = 0;
+    this.height = 0;
+    this.cellWidth = 1;
+    this.cellHeight = 1;
+    this.fontSize = 8;
+    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.frameIndex = 0;
+    this.lastFrame = performance.now();
+    this.introStartTime = performance.now();
+    this.appearDelay = null;
+    this.rafId = 0;
+    this.active = false;
+    this.prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    this.pointer = null;
+    this.boundTick = this.tick.bind(this);
+    this.resizeObserver = new ResizeObserver(() => {
+      this.resize();
+      this.render(performance.now());
+    });
+    this.resizeObserver.observe(element);
+    element.addEventListener("pointermove", (event) => {
+      const rect = element.getBoundingClientRect();
+      this.pointer = {
+        x: (event.clientX - rect.left) * this.dpr,
+        y: (event.clientY - rect.top) * this.dpr,
+      };
+    });
+    element.addEventListener("pointerleave", () => { this.pointer = null; });
+    element.addEventListener("pointercancel", () => { this.pointer = null; });
+    document.addEventListener("visibilitychange", () => {
+      if (!this.active || this.prefersReduced) return;
+      if (document.visibilityState === "visible") this.startLoop();
+      else this.stopLoop();
+    });
+    this.loadFrames();
+  }
+
+  resize() {
+    const rect = this.element.getBoundingClientRect();
+    if (rect.width < 10 || rect.height < 10) return false;
+
+    const nextDpr = Math.min(window.devicePixelRatio || 1, 2);
+    const nextWidth = Math.floor(rect.width * nextDpr);
+    const nextHeight = Math.floor(rect.height * nextDpr);
+    const unchanged = nextWidth === this.width && nextHeight === this.height && nextDpr === this.dpr;
+    if (unchanged) return false;
+
+    const previousColumns = this.columns;
+    const previousRows = this.rows;
+    this.dpr = nextDpr;
+    this.width = nextWidth;
+    this.height = nextHeight;
+    this.element.width = nextWidth;
+    this.element.height = nextHeight;
+
+    let cellSize = 10;
+    if (window.innerWidth >= 992) cellSize = 9;
+    if (window.innerWidth >= 1440) cellSize = 8.5;
+
+    this.columns = clamp(Math.round(rect.width / cellSize), 80, 220);
+    this.rows = clamp(Math.round(rect.height / cellSize), 55, 160);
+    this.cellWidth = this.width / this.columns;
+    this.cellHeight = this.height / this.rows;
+    this.fontSize = clamp(Math.floor(Math.min(this.cellWidth, this.cellHeight) * 1.45), 8, 18);
+
+    this.context.textBaseline = "top";
+    this.context.font = `${this.fontSize}px "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace`;
+    this.context.imageSmoothingEnabled = false;
+
+    if (this.appearDelay && (previousColumns !== this.columns || previousRows !== this.rows)) {
+      this.buildAppearDelays();
+    }
+    return true;
+  }
+
+  setActive(active) {
+    this.active = Boolean(active);
+    if (this.active) {
+      this.resize();
+      this.render(performance.now());
+      if (!this.prefersReduced && this.frames.length) this.startLoop();
+    } else {
+      this.stopLoop();
+    }
+  }
+
+  startLoop() {
+    if (!this.active || this.prefersReduced || document.visibilityState !== "visible" || this.rafId) return;
+    this.rafId = requestAnimationFrame(this.boundTick);
+  }
+
+  stopLoop() {
+    if (!this.rafId) return;
+    cancelAnimationFrame(this.rafId);
+    this.rafId = 0;
+  }
+
+  tick(timestamp) {
+    this.rafId = 0;
+    if (!this.active || this.prefersReduced || document.visibilityState !== "visible") return;
+    this.resize();
+
+    const elapsed = timestamp - this.lastFrame;
+    if (elapsed >= HORSE_FRAME_MS && this.frames.length) {
+      const steps = Math.floor(elapsed / HORSE_FRAME_MS);
+      this.frameIndex = (this.frameIndex + steps) % this.frames.length;
+      this.lastFrame += steps * HORSE_FRAME_MS;
+    }
+    this.render(timestamp);
+    this.startLoop();
+  }
+
+  async loadFrames() {
+    const loaded = await Promise.all(HORSE_FRAME_URLS.map((src) => new Promise((resolve) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.onload = () => resolve(image);
+      image.onerror = () => resolve(null);
+      image.src = src;
+    })));
+    this.frames = loaded.filter(Boolean);
+    if (!this.frames.length) return;
+
+    this.resize();
+    this.buildAppearDelays();
+    this.introStartTime = performance.now();
+    this.lastFrame = this.introStartTime;
+    this.frameIndex = 0;
+    this.render(this.introStartTime);
+    if (this.active && !this.prefersReduced) this.startLoop();
+  }
+
+  buildAppearDelays() {
+    const cellCount = this.columns * this.rows;
+    this.appearDelay = new Float32Array(cellCount);
+    for (let index = 0; index < cellCount; index += 1) {
+      this.appearDelay[index] = Math.random() * HORSE_APPEAR_GAP_MS;
+    }
+  }
+
+  cellAlpha(elapsed, index) {
+    if (this.prefersReduced || !this.appearDelay) return 1;
+    const revealTime = elapsed - this.appearDelay[index];
+    if (revealTime <= 0) return 0;
+    return clamp(revealTime / HORSE_APPEAR_FADE_MS, 0, 1);
+  }
+
+  luminance(red, green, blue) {
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+  }
+
+  getLuminanceAt(data, x, y) {
+    const sampleX = clamp(x, 0, this.columns - 1);
+    const sampleY = clamp(y, 0, this.rows - 1);
+    const index = (sampleY * this.columns + sampleX) * 4;
+    return this.luminance(data[index], data[index + 1], data[index + 2]);
+  }
+
+  drawFrameToOffscreen(image) {
+    this.offscreen.width = this.columns;
+    this.offscreen.height = this.rows;
+
+    const imageWidth = image.naturalWidth || image.width;
+    const imageHeight = image.naturalHeight || image.height;
+    const scale = Math.max(this.columns / imageWidth, this.rows / imageHeight) * 1.02;
+    const drawWidth = imageWidth * scale;
+    const drawHeight = imageHeight * scale;
+    const drawX = Math.round((this.columns - drawWidth) / 2);
+    const drawY = Math.round((this.rows - drawHeight) / 2);
+
+    this.offscreenContext.clearRect(0, 0, this.columns, this.rows);
+    this.offscreenContext.imageSmoothingEnabled = true;
+    this.offscreenContext.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+  }
+
+  render(timestamp = performance.now()) {
+    const image = this.frames[this.frameIndex];
+    if (!this.context || !this.offscreenContext || !image || !this.width || !this.height) return;
+
+    this.drawFrameToOffscreen(image);
+    let pixels;
+    try {
+      pixels = this.offscreenContext.getImageData(0, 0, this.columns, this.rows).data;
+    } catch {
+      return;
+    }
+
+    const ctx = this.context;
+    ctx.clearRect(0, 0, this.width, this.height);
+    ctx.fillStyle = getComputedStyle(this.element).color || "#111";
+    const rampLength = HORSE_RAMP.length - 1;
+    const introElapsed = timestamp - this.introStartTime;
+
+    for (let row = 0; row < this.rows; row += 1) {
+      for (let column = 0; column < this.columns; column += 1) {
+        const px = Math.round(column * this.cellWidth);
+        const py = Math.round(row * this.cellHeight);
+        let sampleX = column;
+        let sampleY = row;
+
+        if (this.pointer) {
+          const dx = px - this.pointer.x;
+          const dy = py - this.pointer.y;
+          const distanceSquared = dx * dx + dy * dy;
+          if (distanceSquared > 1 && distanceSquared < HORSE_REPEL_RADIUS * HORSE_REPEL_RADIUS) {
+            const distance = Math.sqrt(distanceSquared);
+            const force = (1 - distance / HORSE_REPEL_RADIUS) * HORSE_REPEL_STRENGTH;
+            sampleX += (dx / distance) * force * this.columns;
+            sampleY += (dy / distance) * force * this.rows;
+          }
+        }
+
+        sampleX = clamp(Math.round(sampleX), 0, this.columns - 1);
+        sampleY = clamp(Math.round(sampleY), 0, this.rows - 1);
+
+        const pixelIndex = (sampleY * this.columns + sampleX) * 4;
+        if (pixels[pixelIndex + 3] < 20) continue;
+
+        let light = this.luminance(pixels[pixelIndex], pixels[pixelIndex + 1], pixels[pixelIndex + 2]);
+        light = clamp((light - 128) * 1.05 + 128, 0, 255);
+
+        const left = this.getLuminanceAt(pixels, sampleX - 1, sampleY);
+        const right = this.getLuminanceAt(pixels, sampleX + 1, sampleY);
+        const top = this.getLuminanceAt(pixels, sampleX, sampleY - 1);
+        const bottom = this.getLuminanceAt(pixels, sampleX, sampleY + 1);
+        let edge = Math.abs(right - left) + Math.abs(bottom - top);
+        edge = Math.max(0, edge - HORSE_EDGE_THRESHOLD);
+        edge = Math.min(255, edge * HORSE_EDGE_BOOST);
+
+        let shade = 1 - light / 255;
+        shade = clamp(shade - (edge / 255) * HORSE_EDGE_WEIGHT, 0, 1);
+        const glyph = HORSE_RAMP[Math.round(shade * rampLength)];
+
+        const alpha = this.cellAlpha(introElapsed, row * this.columns + column);
+        if (alpha <= 0) continue;
+        ctx.globalAlpha = alpha;
+        ctx.fillText(glyph, px, py);
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+}
+
 const homeAscii = new AsciiAgent($("#home-ascii"), { columns: 112, rows: 25, home: true });
 const agentAscii = new AsciiAgent($("#agent-ascii"), { columns: 60, rows: 15 });
 const sidebarAscii = new AsciiAgent($("#sidebar-ascii"), { columns: 32, rows: 7 });
+const landingHorse = new HorseAsciiAgent(landingAscii);
 
 function animateView(view) {
   view.classList.remove("is-entering");
   requestAnimationFrame(() => {
     view.classList.add("is-entering");
-    window.setTimeout(() => view.classList.remove("is-entering"), 260);
+    window.setTimeout(() => view.classList.remove("is-entering"), VIEW_TRANSITION_MS);
   });
 }
 
 function setView(nextView) {
+  if (nextView === "landing") {
+    run.view = "landing";
+    body.dataset.view = "landing";
+    if (skipLink) skipLink.href = "#landing-title";
+    landingView.hidden = false;
+    landingView.removeAttribute("aria-hidden");
+    appShell.hidden = true;
+    appShell.setAttribute("aria-hidden", "true");
+    homeView.hidden = false;
+    agentView.hidden = true;
+    homeAscii.setActive(false);
+    agentAscii.setActive(false);
+    sidebarAscii.setActive(false);
+    landingHorse.resize();
+    landingHorse.setActive(true);
+    closeSidebar();
+    closeDetails();
+    return;
+  }
+
   const showAgent = nextView === "agent";
   run.view = showAgent ? "agent" : "home";
   body.dataset.view = run.view;
+  if (skipLink) skipLink.href = "#main-content";
+  landingView.hidden = true;
+  landingView.setAttribute("aria-hidden", "true");
+  appShell.hidden = false;
+  appShell.removeAttribute("aria-hidden");
+  homeAscii.setActive(!showAgent);
+  agentAscii.setActive(showAgent);
+  sidebarAscii.setActive(true);
+  landingHorse.setActive(false);
   homeView.hidden = showAgent;
   agentView.hidden = !showAgent;
   $("#main-content").scrollTop = 0;
@@ -517,11 +850,46 @@ function setView(nextView) {
   if (!showAgent) closeDetails();
 }
 
+function hasEnteredAgent() {
+  try {
+    return window.localStorage.getItem(ENTRY_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function rememberAgentEntry() {
+  try {
+    window.localStorage.setItem(ENTRY_STORAGE_KEY, "1");
+  } catch {
+    // Private browsing can deny storage; the transition still works for this visit.
+  }
+}
+
+function enterAgent() {
+  if (!enterAgentButton || enterAgentButton.disabled) return;
+  rememberAgentEntry();
+  enterAgentButton.disabled = true;
+  landingView.classList.add("is-leaving");
+  appShell.hidden = false;
+  appShell.classList.add("is-entering-workspace");
+  landingHorse.setActive(false);
+  const finishEntry = () => {
+    setView("home");
+    landingView.classList.remove("is-leaving");
+    appShell.classList.remove("is-entering-workspace");
+    enterAgentButton.disabled = false;
+    updateHarnessStatus();
+  };
+  if (landingHorse.prefersReduced) finishEntry();
+  else window.setTimeout(finishEntry, VIEW_TRANSITION_MS);
+}
+
 function panelTitle(panel) {
   return { start: "Home", activity: "Activity", monitored: "Watched" }[panel] || "Home";
 }
 
-function setHomePanel(panel) {
+function setHomePanel(panel, options = {}) {
   const target = $('[data-home-panel="' + panel + '"]');
   if (!target) return;
   run.homePanel = panel;
@@ -531,7 +899,7 @@ function setHomePanel(panel) {
   $$("[data-home-panel-target]").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.homePanelTarget === panel);
   });
-  setView("home");
+  if (!options.skipView) setView("home");
   topbarTitle.textContent = panelTitle(panel);
 }
 
@@ -1182,6 +1550,8 @@ function handleDeleteAction() {
   }
 }
 
+enterAgentButton.addEventListener("click", enterAgent);
+
 homeForm.addEventListener("submit", (event) => {
   event.preventDefault();
   startMission(homePrompt.value);
@@ -1329,7 +1699,8 @@ if (deleteActionBtn) deleteActionBtn.addEventListener("click", handleDeleteActio
 
 renderEvidence(2, false);
 setRunState("idle");
-setHomePanel("start");
-updateHarnessStatus();
+setHomePanel("start", { skipView: true });
+setView(hasEnteredAgent() ? "home" : "landing");
+if (hasEnteredAgent()) updateHarnessStatus();
 // expose gov-name helpers for manual testing
-window.BlastRadius = { resolveGovInput, extractGovNameFromPrompt, mcpTool, updateHarnessStatus };
+window.BlastRadius = { resolveGovInput, extractGovNameFromPrompt, mcpTool, updateHarnessStatus, enterAgent, setView, landingHorse };

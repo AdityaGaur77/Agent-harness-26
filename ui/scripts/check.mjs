@@ -2,11 +2,13 @@ import { readFile } from "node:fs/promises";
 
 const root = new URL("..", import.meta.url);
 const read = (file) => readFile(new URL(file, root), "utf8");
-const [html, css, js, pkg] = await Promise.all([
+const readBinary = (file) => readFile(new URL(file, root));
+const [html, css, js, pkg, horseFrames] = await Promise.all([
   read("index.html"),
   read("styles.css"),
   read("app.js"),
   read("package.json"),
+  Promise.all(Array.from({ length: 11 }, (_, index) => readBinary(`assets/horse/frame-${String(index + 1).padStart(2, "0")}.webp`))),
 ]);
 
 const all = `${html}\n${css}\n${js}`;
@@ -32,7 +34,10 @@ const irrelevantChatFeatures = [
 const assertions = [
   ["main landmark", /<main[^>]+id="main-content"/.test(html)],
   ["one page heading", (html.match(/<h1\b/g) || []).length === 1],
-  ["two-stage product", ['id="home-view"', 'id="agent-view"', 'data-view="home"'].every((value) => html.includes(value)) && js.includes("setView")],
+  ["two-stage product", ['id="landing-view"', 'id="home-view"', 'id="agent-view"', 'data-view="landing"'].every((value) => html.includes(value)) && js.includes("setView") && js.includes("enterAgent")],
+  ["first-visit front door", html.includes('id="landing-title"') && html.includes('id="landing-description"') && html.includes('id="enter-agent"') && html.includes("Your personal data")],
+  ["first visit is remembered", js.includes('ENTRY_STORAGE_KEY = "blast_radius_has_entered"') && js.includes("hasEnteredAgent") && js.includes("rememberAgentEntry") && js.includes("localStorage.setItem(ENTRY_STORAGE_KEY")],
+  ["landing handoff is considered", js.includes("landingView.classList.add(\"is-leaving\")") && js.includes("appShell.classList.add(\"is-entering-workspace\")") && js.includes("VIEW_TRANSITION_MS = 320") && css.includes("landing-exit")],
   ["prompt-first home", html.indexOf('id="home-prompt"') < html.indexOf('id="recent-missions"') && (html.includes("Tell me what to find") || html.includes("What would you like me to find") || html.includes("What should I find or remove"))],
   ["only relevant chat patterns", irrelevantChatFeatures.every((value) => !all.includes(value))],
   ["home navigation is privacy specific", ["New request", "Activity", "Connections"].every((value) => html.includes(value)) && (html.includes("Watched") || html.includes("Monitored"))],
@@ -59,6 +64,9 @@ const assertions = [
   ["demo is honest and human", (html.includes("Demo only") || html.includes("This demo uses")) && /rollback/i.test(all)],
   ["agent status announced", html.includes('role="status"') && html.includes('aria-live="polite"')],
   ["ASCII adapts across both views", html.includes('id="home-ascii"') && html.includes('id="agent-ascii"') && js.includes("class AsciiAgent")],
+  ["landing horse uses authored motion frames", html.includes('id="landing-ascii"') && js.includes("class HorseAsciiAgent") && js.includes("HORSE_FRAME_COUNT = 11") && horseFrames.length === 11 && horseFrames.every((frame) => frame.length > 1000)],
+  ["landing horse matches the reference renderer", js.includes("HORSE_FPS = 12") && js.includes("HORSE_EDGE_BOOST = 1.65") && js.includes("HORSE_EDGE_WEIGHT = 0.75") && js.includes("HORSE_RAMP") && js.includes("getImageData")],
+  ["landing horse motion is bounded", js.includes("HORSE_REPEL_RADIUS = 110") && js.includes("HORSE_REPEL_STRENGTH = 0.3") && js.includes("prefers-reduced-motion") && js.includes("setActive(active)")],
   ["ASCII is a structural presence", /homeAscii[^\n]+columns:\s*(?:9[6-9]|1\d{2})[^\n]+rows:\s*(?:2[2-9]|[3-9]\d)/.test(js) && /agentAscii[^\n]+columns:\s*(?:6\d|[7-9]\d|1\d{2})/.test(js) && js.includes("sidebarAscii")],
   ["home copy is deliberately sparse", !html.includes('class="presence-label"') && !html.includes('class="starter-prompts"') && !html.includes('class="privacy-promise"')],
   ["primary surfaces are flat", /\.prompt-card\s*\{[^}]*border-radius:\s*0/.test(css) && /\.mission-progress\s*\{[^}]*border-radius:\s*0/.test(css) && /\.agent-composer\s*\{[^}]*border-radius:\s*0/.test(css) && !css.includes("--shadow-card")],

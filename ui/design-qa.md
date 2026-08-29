@@ -1,51 +1,71 @@
-# Blast Radius workspace design QA
+# Blast Radius landing-page design QA
 
-## Reference and render
+## Comparison target and evidence
 
-- Approved written direction: /Volumes/MacExt1TB/Documents/ChatGPT/Agent Harness/.worktrees/awwwards-ui/PRODUCT.md
-- Design system: /Volumes/MacExt1TB/Documents/ChatGPT/Agent Harness/.worktrees/awwwards-ui/DESIGN.md
-- Static Image Gen concept, used only as a composition reference: /Users/aaravvivek/.codex/generated_images/01a045c2-6a2b-7cd1-843f-a90cfbcdf50d/exec-6263af5a-b2a7-4f4d-9338-f4097a3115cf.png
-- Latest Browser/IAB render: /Users/aaravvivek/.codex/visualizations/2026/08/28/01a045c2-6a2b-7cd1-843f-a90cfbcdf50d/blast-radius-desktop-final.png
-- Verified viewport: 1260 × 924 at DPR 1
-- URL: http://localhost:4173/
+- Source visual truth: https://lunar-horse.webflow.io/
+- Implementation: http://127.0.0.1:4173/
+- Desktop source: `/tmp/lunar-source-1280.png`
+- Desktop implementation: `/tmp/blast-local-1280-approved.png`
+- Desktop combined comparison: `/tmp/lunar-vs-blast-desktop-final.png`
+- Mobile source: `/tmp/lunar-source-390.png`
+- Mobile implementation: `/tmp/blast-local-390-final.png`
+- Mobile combined comparison: `/tmp/lunar-vs-blast-mobile-final.png`
+- State: first-visit landing screen after the ASCII reveal has settled
+- Desktop normalization: 1280 x 720 source pixels and implementation pixels, 1280 x 720 CSS viewport, DPR 1
+- Mobile normalization: 390 x 844 source pixels and implementation pixels, 390 x 844 CSS viewport, DPR 1
 
-Both reference and implementation screenshots were inspected with view_image at original detail.
+The source and implementation were inspected in matched, browser-rendered desktop and mobile views. The final source and implementation screenshots were also placed into the combined comparison images above before sign-off.
 
-## Fidelity ledger
+## Findings
 
-| Comparison point | Concept evidence | Render evidence | Resolution |
-|---|---|---|---|
-| Product skeleton | Mission rail, central agent, evidence inspector | Same three-region shell opens immediately | Match |
-| ASCII presence | Large ordered target-like ASCII field | Code-native spring ASCII owns the top of the conversation and changes by run state | Widened rings and source lanes; kept shorter vertically so the identity question remains visible |
-| Typography | Serif agent voice, compact sans controls, mono evidence | Merriweather conversation and headings; Avenir Next chrome; SF Mono evidence | Match |
-| Palette | Mineral white, carbon, one cobalt signal | Seven semantic OKLCH tokens, one cobalt hue, no gradients or extra status colors | Match |
-| Container model | Rails, lists, hairlines, no card grid | Open mission/evidence lists; one bordered question artifact and one composer | Match |
-| First-viewport hierarchy | Working agent before explanation | Mission, ASCII state, user request, agent declaration, and required question all visible | Match after reducing vertical dead space |
-| Feature coverage | Agent, evidence, subagents, scope, rehearsal, audit | All seven harness tools, connector health, blast radius, rollback, compaction, scope, and audit are present | Match |
-| Interaction | Conversation drives agent work | Yes/no clarification, alternate-city answer, autonomous run, pause/resume, new mission, archived missions, evidence reveal, connector errors | Verified |
+No actionable P0, P1, or P2 visual differences remain.
 
-## Above-the-fold copy
+- The implementation intentionally preserves Blast Radius product copy, Merriweather display typography, the entry action, and its demo-honesty note rather than copying Lunar Horse's event copy.
+- On desktop, the horse canvas uses the source's 68vw x 80vh geometry and 14.2708vh vertical origin, then shifts 10vw right so moving legs do not collide with the longer product heading. This is an intentional product-content constraint rather than animation drift.
+- On mobile, the canvas matches the source's 99vw x 43vh geometry, 30vh origin, and 10vw vertical offset.
 
-The implementation keeps the approved product copy and adds only functional or honesty-critical strings: Synthetic demo, No live removal, the identity disambiguation question, and the standing authorization state. No marketing eyebrow, feature claim, fake metric, or portfolio copy was added.
+## Required fidelity surfaces
 
-## Browser checks
+- Fonts and typography: Merriweather remains the product voice; compact system sans and mono labels preserve the reference's editorial hierarchy without impersonating its exact brand typography. Weight, line height, wrapping, and small-label tracking are stable at both viewports.
+- Spacing and layout rhythm: the full-screen field, single hairline header/footer treatment, generous negative space, and dominant centered animation match the reference language. The mobile footer was compressed into one action row so the horse and copy no longer collide.
+- Colors and visual tokens: one warm mineral background, carbon text, muted secondary ink, and restrained hairlines. No gradients, decorative status colors, shadows, or floating cards were introduced.
+- Image quality and asset fidelity: the former procedural approximation was removed. Eleven local WebP motion frames drive the horse-and-rider silhouette; the renderer keeps the source's density, cover sampling, luminance, edge weighting, reveal, and pointer-repulsion constants. There are no CSS-art or inline-SVG substitutes.
+- Copy and content: the landing promise is plain, privacy-specific, and honest about the demo. The primary action clearly hands off to the existing agent workspace; no portfolio or event-site language leaks into the product.
+- Interaction and responsiveness: the first-visit handoff remains wired, the canvas is pointer-reactive, all eleven frames are referenced, and the gallop advances at 12 FPS. The existing agent workspace and all harness features remain intact behind the entry action.
 
-- Page identity: passed
-- Meaningful DOM: passed
-- Framework overlay: none
-- Console warnings/errors: none
-- First viewport screenshot: passed
-- Clarifying-question path: passed
-- Alternate-city path: passed
-- Autonomous completion: passed
-- Pause and resume: passed; state and timer remained held
-- Empty connector error: passed
-- Synthetic-data honesty: passed
+## Focused motion evidence
 
-## Responsive note
+The horse is already the dominant large-format subject in both combined full-view comparisons, so a separate enlargement was not needed for anatomy or glyph quality. A focused browser crop of the implementation canvas was captured twice 100ms apart after reveal; the two SHA-256 prefixes differed (`5fe4d4f792d7` and `5cbc91a718a8`), confirming visible frame advancement at the intended cadence. The source and implementation still captures are not expected to show the same gait phase because their animation clocks are independent.
 
-The implementation includes dedicated 1120px and 760px rail/sheet layouts, fixed 100dvh, and body overflow containment. A separate mobile screenshot could not be captured because Browser/IAB blocked the isolated mobile-frame URL under its URL security policy. No alternate browser workaround was used.
+## Comparison history
 
-## Sign-off
+1. Earlier P1: the landing horse was a procedural geometry approximation and did not read as an anatomically believable gallop.
+   - Fix: replaced the procedural renderer with the eleven authored horse-and-rider frames used by the reference motion study and rebuilt the ASCII pass around the source's exact 12 FPS sampling behavior.
+   - Post-fix evidence: `/tmp/lunar-vs-blast-desktop-final.png` and `/tmp/lunar-vs-blast-mobile-final.png` show the same photographic motion language and clean silhouette construction.
+2. Earlier P2: the local canvas was 1049.6 x 594.3 at desktop and 390 x 582 at mobile, which made the horse too large and caused leg/copy collisions.
+   - Fix: matched the source canvas geometry at both breakpoints, compacted the mobile footer, shortened the supporting sentence, and moved the desktop horse right to accommodate the longer product heading.
+   - Post-fix evidence: the final combined comparisons show clear separation between the moving silhouette, product promise, and entry action.
 
-Desktop implementation is coherent with the approved design: hierarchy, typography, palette, container model, and the complete core interaction have no material mismatch. The only unrendered QA item is a separate narrow-viewport screenshot.
+## Browser and implementation checks
+
+- Eleven local horse frame references: passed
+- Frame-to-frame motion after 100ms: passed
+- Browser console warnings/errors on the landing state: none
+- Static checks: 45/45 passed
+- JavaScript syntax check: passed
+- Git whitespace check: passed
+
+## Open questions and follow-up polish
+
+- Before a public deployment, confirm permission to redistribute the Lunar Horse/Muybridge-derived frame files or replace them with a licensed equivalent. This is a release-rights note, not a remaining visual mismatch in the local prototype.
+- A P3-only refinement would be testing the pointer-repulsion feel with several real users; it does not block this visual pass.
+
+## Implementation checklist
+
+- [x] Replace procedural anatomy with authored gallop frames.
+- [x] Match the reference cadence and ASCII sampling constants.
+- [x] Match desktop and mobile canvas geometry.
+- [x] Prevent horse/copy collisions.
+- [x] Verify desktop, mobile, frame loading, browser logs, and motion advancement.
+
+final result: passed

@@ -5,15 +5,56 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Blast Radius, a private erasure agent with a live ASCII interface." />
     <title>Blast Radius</title>
+    <link rel="icon" href="data:," />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Merriweather:wght@400;600&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=20260828-clean" />
+    <link rel="preload" as="image" href="./assets/horse/frame-01.webp" />
+    <link rel="preload" as="image" href="./assets/horse/frame-02.webp" />
+    <link rel="preload" as="image" href="./assets/horse/frame-03.webp" />
+    <link rel="preload" as="image" href="./assets/horse/frame-04.webp" />
+    <link rel="preload" as="image" href="./assets/horse/frame-05.webp" />
+    <link rel="preload" as="image" href="./assets/horse/frame-06.webp" />
+    <link rel="preload" as="image" href="./assets/horse/frame-07.webp" />
+    <link rel="preload" as="image" href="./assets/horse/frame-08.webp" />
+    <link rel="preload" as="image" href="./assets/horse/frame-09.webp" />
+    <link rel="preload" as="image" href="./assets/horse/frame-10.webp" />
+    <link rel="preload" as="image" href="./assets/horse/frame-11.webp" />
+    <link rel="stylesheet" href="./styles.css?v=20260829-gallop6" />
   </head>
-  <body data-view="home">
-    <a class="skip-link" href="#main-content">Skip to main content</a>
+  <body data-view="landing">
+    <a class="skip-link" href="#landing-title">Skip to content</a>
 
-    <div class="app-shell">
+    <section class="landing-view" id="landing-view" aria-labelledby="landing-title">
+      <header class="landing-header">
+        <a class="landing-brand" href="#landing-view" aria-label="Blast Radius home">
+          <span class="landing-brand-mark" aria-hidden="true">[br]</span>
+          <span>Blast Radius</span>
+        </a>
+        <p class="landing-header-note">Private by design</p>
+      </header>
+
+      <div class="landing-stage">
+        <canvas id="landing-ascii" width="1200" height="680" role="img" aria-label="An animated ASCII horse and rider in full gallop, the living mark of the privacy agent"></canvas>
+      </div>
+
+      <div class="landing-footer">
+        <div class="landing-copy">
+          <p class="eyebrow">A personal privacy agent</p>
+          <h1 id="landing-title">Your personal data,<br /><em>under your direction.</em></h1>
+          <p id="landing-description">I find it, verify it, and ask before anything changes.</p>
+        </div>
+        <div class="landing-entry">
+          <button class="landing-cta" id="enter-agent" type="button">
+            <span>Enter the agent</span>
+            <span class="landing-cta-arrow" aria-hidden="true">↗</span>
+          </button>
+          <p class="landing-note">Demo only. Nothing real changes.</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="app-shell" id="app-shell" aria-hidden="true" hidden>
       <aside class="sidebar" id="sidebar" aria-label="Main navigation">
         <div class="sidebar-heading">
           <button class="brand-button" type="button" data-go-home aria-label="Go to home">
@@ -129,7 +170,7 @@
                     <pre class="ascii-presence ascii-presence-home" id="home-ascii" role="img" aria-label="The agent is ready"></pre>
                   </div>
 
-                  <h1 id="home-title">What should I find or remove?</h1>
+                  <h2 id="home-title">What should I find or remove?</h2>
                   <p class="home-subtitle">Tell me what worries you. I’ll decide where to look and ask only when a match is unclear.</p>
 
                   <form class="prompt-card" id="home-form">
@@ -469,7 +510,7 @@
       </form>
     </dialog>
 
-    <script src="./app.js?v=20260828-clean" defer></script>
+    <script src="./app.js?v=20260829-gallop" defer></script>
     <script>
       const observer = new IntersectionObserver((entries) => {
         entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add('is-visible'); });
