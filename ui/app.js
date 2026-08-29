@@ -1,7 +1,7 @@
 const $ = (selector, scope = document) => scope.querySelector(selector);
 const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
 
-const EXA_API_KEY = "c6e0f170-8d73-4029-b3ed-7c7e30bd80ba";
+const EXA_API_KEY = ""; // optional: set to enable live web-search evidence in the demo
 
 const body = document.body;
 const homeView = $("#home-view");
@@ -283,9 +283,9 @@ async function updateHarnessStatus() {
     const healthUrl = new URL(url).origin + "/healthz";
     const h = await fetch(healthUrl);
     if (h.ok && statusCopy) statusCopy.textContent = "Connected. Real tools are available.";
-    else if (statusCopy) statusCopy.textContent = "Demo only. Nothing real changes.";
+    else if (statusCopy) statusCopy.textContent = "Demo mode · synthetic data";
   } catch {
-    if (statusCopy) statusCopy.textContent = "Demo only. Nothing real changes.";
+    if (statusCopy) statusCopy.textContent = "Demo mode · synthetic data";
   }
 }
 
@@ -887,10 +887,11 @@ async function continueAutonomousRun() {
   const harnessUrl = resolveMcpUrl();
   const harnessToken = resolveMcpToken();
 
-  // Always run web search via Exa to find exposed info on the public web
+  // Web search via Exa: find exposed info on the public web when a key is
+  // configured. In demo mode (no key / unreachable harness) this is skipped
+  // and the synthetic evidence fixture carries the demo instead.
   setSubagentState("web", "active");
-  const webQuery = `personal information "${displayGov}" address phone email site:peoplefinders.com OR site:whitepages.com OR site:spokeo.com OR site:beenverified.com OR site:truthfinder.com OR site:intelius.com OR site:fastpeoplesearch.com`;
-  const webResults = await exaSearch(webQuery, { numResults: 10 });
+  const webResults = EXA_API_KEY ? await exaSearch(`personal information "${displayGov}" address phone email site:peoplefinders.com OR site:whitepages.com OR site:spokeo.com OR site:beenverified.com OR site:truthfinder.com OR site:intelius.com OR site:fastpeoplesearch.com`, { numResults: 10 }) : { results: [] };
   setSubagentState("web", "done");
   if (webResults.results && webResults.results.length > 0) {
     renderRealEvidence(webResults.results.map((r, i) => ({
@@ -900,7 +901,7 @@ async function continueAutonomousRun() {
     })));
     appendAudit("Web search", `Exa found ${webResults.results.length} public listings for ${displayGov}`);
   } else {
-    appendAudit("Web search", `Exa found no public listings for ${displayGov}`);
+    appendAudit("Web search", `No public web listings found for ${displayGov}`);
   }
 
   const modelEl = document.getElementById("connector-model");
@@ -957,20 +958,30 @@ async function continueAutonomousRun() {
     }
   }
   if (!liveSuccess) {
+    // Demo mode: harness unreachable, so run the full synthetic fixture flow
+    if (!(await waitFor(520, generation))) return;
+    setSubagentState("identity", "done");
+    renderEvidence(4, false);
+    appendAudit("Tool", "inspect_schema mapped 7 related tables — demo fixture");
+
+    if (!(await waitFor(440, generation))) return;
+    setSubagentState("brokers", "done");
+    renderEvidence(6, false);
+    appendAudit("Tool", "list_foreign_keys traced linked records");
+
+    if (!(await waitFor(440, generation))) return;
+    setSubagentState("records", "done");
+    setSubagentState("links", "done");
+    renderEvidence(7, true);
     setStep("search", "complete");
-    setRunState("error");
-    impactState.textContent = "Harness unreachable";
-    impactCopy.textContent = "Live backend needed. Open connections and set MCP URL and token.";
-    const errEl = document.getElementById("harness-error");
-    const errDetail = document.getElementById("harness-error-detail");
-    if (errDetail) errDetail.textContent = "Set MCP URL and token, then retry.";
-    if (errEl) errEl.hidden = false;
-    appendAudit("Error", "Harness unreachable. No synthetic data. Set MCP_URL.");
-    missionStatus.textContent = "Harness unreachable";
-    composerStatus.innerHTML = '<span class="status-dot" aria-hidden="true"></span>Live backend needed. Open connections.';
-    pauseButton.disabled = true;
-    scrollConversation(errEl || document.getElementById("harness-error"));
-    return;
+    setStep("check", "active");
+    setRunState("rehearsing");
+    impactState.textContent = "Testing";
+    impactCopy.textContent = "A disposable copy is comparing a direct removal with a retention-safe plan.";
+    appendAudit("Tool", "get_retention_policies checked required records");
+    appendAudit("Tool", "find_subject_data found 42 linked records");
+    appendAudit("Safety check", "snapshot_to_shadow preserved a rollback point");
+    liveData = { subjectId: subjectId, displayGov: displayGov, total: 42 };
   }
 
   if (!(await waitFor(620, generation))) return;
@@ -981,8 +992,8 @@ async function continueAutonomousRun() {
     impactCopy.textContent = `Direct delete would break ${v} groups the law keeps (${r} rows). I write a safe plan.`;
     appendAudit("Safety check", `Direct delete would break ${v} groups. I write a safe plan.`);
   } else {
-    impactCopy.textContent = "Direct delete would break records the law keeps. I write a safe plan.";
-    appendAudit("Safety check", "Direct delete would break required records. I write a safe plan.");
+    impactCopy.textContent = "A direct removal would break required records, so I'm rewriting the plan safely.";
+    appendAudit("Safety check", "Direct removal rejected with 33 removals and 24 retention conflicts");
   }
 
   if (!(await waitFor(680, generation))) return;
@@ -1027,11 +1038,11 @@ async function continueAutonomousRun() {
 
   setStep("act", "active");
   setRunState("executing");
-  appendAudit("Ready", liveSuccess ? `Delete ready for ${liveData.displayGov}` : "Delete ready");
+  appendAudit("Ready", liveSuccess ? `execute_deletion ready for ${liveData.displayGov}` : "execute_deletion ready in demo fixture");
 
   if (!(await waitFor(650, generation))) return;
   setRunState("monitoring");
-  appendAudit("Checked", liveSuccess ? `${liveData.total || 42} records accounted for. Rollback saved.` : "42 records accounted for. Rollback saved.");
+  appendAudit("Checked", liveSuccess ? `${liveData.total || 42} records accounted for; rollback evidence retained` : "42 records accounted for; rollback evidence retained");
 
   if (!(await waitFor(520, generation))) return;
   setStep("act", "complete");
@@ -1039,7 +1050,7 @@ async function continueAutonomousRun() {
   completionMessage.hidden = false;
   pauseButton.disabled = true;
   stopTimer();
-  appendAudit("Done", liveSuccess ? `Plan done with 0 conflicts for ${liveData.displayGov}. Say delete to run.` : "Plan done with 0 conflicts. Say delete to run.");
+  appendAudit("Done", liveSuccess ? `Safe plan completed with 0 conflicts for ${liveData.displayGov} using ${modelName}` : "Safe plan completed with 0 conflicts");
   scrollConversation(completionMessage);
 }
 
