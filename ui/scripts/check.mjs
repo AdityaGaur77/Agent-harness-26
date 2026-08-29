@@ -55,7 +55,7 @@ const assertions = [
   ["connector controls preserved", html.includes('id="connector-dialog"') && html.includes('id="connector-url"') && html.includes('id="connector-token"') && html.includes('id="connector-test"') && js.includes("/healthz")],
   ["scope and rollback preserved", html.includes('id="scope-policy"') && /rollback/i.test(all)],
   ["audit history preserved", html.includes('id="audit-history"') && js.includes("appendAudit")],
-  ["monitored identity is usable", html.includes('id="monitored-panel"') && all.includes("Jane Q Synthetic") && all.includes("customer 4471") && html.includes('id="add-identity"')],
+  ["monitored identity is usable", html.includes('id="monitored-panel"') && all.includes("Jane Austin") && all.includes("customer 4471") && html.includes('id="add-identity"')],
   ["demo is honest and human", (html.includes("Demo only") || html.includes("This demo uses")) && /rollback/i.test(all)],
   ["agent status announced", html.includes('role="status"') && html.includes('aria-live="polite"')],
   ["ASCII adapts across both views", html.includes('id="home-ascii"') && html.includes('id="agent-ascii"') && js.includes("class AsciiAgent")],

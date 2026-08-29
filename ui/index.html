@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Merriweather:wght@400;600&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=20260828-demo" />
+    <link rel="stylesheet" href="./styles.css?v=20260828-jane" />
   </head>
   <body data-view="home">
     <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -210,13 +210,13 @@
                   <button class="quiet-button" type="button" data-home-panel-target="start">Back</button>
                 </header>
                 <div class="identity-card">
-                  <div class="identity-avatar" aria-hidden="true">JQ</div>
-                  <div class="identity-card-copy"><strong>Jane Q Synthetic</strong><span>Primary</span><small>Nashville · customer 4471</small></div>
+                  <div class="identity-avatar" aria-hidden="true">JA</div>
+                  <div class="identity-card-copy"><strong>Jane Austin</strong><span>Primary</span><small>Nashville · customer 4471</small></div>
                   <button class="quiet-button" type="button" data-edit-identity>Edit</button>
                 </div>
                 <div class="identity-card">
                   <div class="identity-avatar identity-avatar-email" aria-hidden="true">@</div>
-                  <div class="identity-card-copy"><strong>jane.q@example.test</strong><span>Email</span><small>Demo only</small></div>
+                  <div class="identity-card-copy"><strong>jane.austin@example.test</strong><span>Email</span><small>Demo only</small></div>
                   <button class="quiet-button" type="button" data-edit-identity>Edit</button>
                 </div>
                 <button class="add-identity-card" id="add-identity" type="button">
@@ -368,8 +368,8 @@
               <span class="confidence-badge">92%</span>
             </div>
             <div class="match-person">
-              <div class="identity-avatar" aria-hidden="true">JQ</div>
-              <div><strong>Jane Q Synthetic</strong><span>Nashville</span><small>Demo · customer 4471 · 5.6 per name</small></div>
+              <div class="identity-avatar" aria-hidden="true">JA</div>
+              <div><strong>Jane Austin</strong><span>Nashville</span><small>Demo · customer 4471 · 5.6 per name</small></div>
             </div>
           </section>
 
@@ -379,8 +379,8 @@
               <span>Confidence</span>
             </div>
             <div class="evidence-list" id="evidence-list">
-              <article><span class="source-mark" aria-hidden="true">P</span><div><strong>People-search listing</strong><small>Address and phone</small></div><em>72%</em></article>
-              <article><span class="source-mark" aria-hidden="true">A</span><div><strong>Broker record</strong><small>Earlier residence</small></div><em>68%</em></article>
+              <article><span class="source-mark" aria-hidden="true">S</span><div><strong>Spokeo</strong><small>jane.austin@craftandco.com · (615) 555-0144</small></div><em>82%</em></article>
+              <article><span class="source-mark" aria-hidden="true">W</span><div><strong>Whitepages</strong><small>214 Willowbrook Dr, Nashville, TN 37215</small></div><em>77%</em></article>
               <article class="is-pending"><span class="source-mark" aria-hidden="true">+</span><div><strong>Five more groups</strong><small>Waits for your answer</small></div><em>Queued</em></article>
             </div>
           </section>
@@ -469,7 +469,7 @@
       </form>
     </dialog>
 
-    <script src="./app.js?v=20260828-demo" defer></script>
+    <script src="./app.js?v=20260828-jane" defer></script>
     <script>
       const observer = new IntersectionObserver((entries) => {
         entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add('is-visible'); });

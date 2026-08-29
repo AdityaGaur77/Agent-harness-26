@@ -123,13 +123,13 @@ const stateCopy = {
 };
 
 const evidenceFixture = [
-  { mark: "P", name: "People-search listing", detail: "Address and phone", confidence: "72%" },
-  { mark: "A", name: "Address broker record", detail: "Earlier residence", confidence: "68%" },
-  { mark: "C", name: "Consumer profile", detail: "Email and age range", confidence: "83%" },
-  { mark: "V", name: "Voter index", detail: "Public registration", confidence: "91%" },
-  { mark: "L", name: "Linked account", detail: "Alias and username", confidence: "77%" },
-  { mark: "R", name: "Property record", detail: "Earlier mailing address", confidence: "88%" },
-  { mark: "D", name: "Data broker profile", detail: "Household relationship", confidence: "79%" },
+  { mark: "S", name: "Spokeo", detail: "jane.austin@craftandco.com · (615) 555-0144", confidence: "82%" },
+  { mark: "W", name: "Whitepages", detail: "214 Willowbrook Dr, Nashville, TN 37215", confidence: "77%" },
+  { mark: "B", name: "BeenVerified", detail: "Born 1992 · household: Mark Austin", confidence: "71%" },
+  { mark: "C", name: "Instant Checkmate", detail: "2019 Jeep Cherokee · TN plate 4HX-T201", confidence: "68%" },
+  { mark: "T", name: "TruePeopleSearch", detail: "Alt email jaustin_88@yahoo.com", confidence: "79%" },
+  { mark: "V", name: "Davidson Co. voter index", detail: "Registered active · precinct 21-04 · since 2014", confidence: "91%" },
+  { mark: "F", name: "FastPeopleSearch", detail: "Relative contact: Mark Austin", confidence: "74%" },
 ];
 
 const subagentPlan = [
@@ -165,8 +165,8 @@ const standingAuthorization = {
 };
 
 // Live harness + gov-name support — replaces synthetic-only flow
-const govNameToId = { "jane q synthetic": 4471, "jane synthetic": 4471, jane: 4471 };
-const idToGovName = { 4471: "Jane Q Synthetic" };
+const govNameToId = { "jane austin": 4471, "jane q synthetic": 4471, "jane synthetic": 4471, jane: 4471 };
+const idToGovName = { 4471: "Jane Austin" };
 function normalizeGovInput(s) { return s.trim().replace(/\s+/g, " "); }
 function resolveGovInput(raw) {
   const t = normalizeGovInput(raw);
@@ -177,15 +177,15 @@ function resolveGovInput(raw) {
   }
   const lower = t.toLowerCase();
   if (govNameToId[lower] != null) return { id: govNameToId[lower], displayName: idToGovName[govNameToId[lower]], via: "name" };
-  if (lower.includes("jane") && lower.includes("synthetic")) return { id: 4471, displayName: "Jane Q Synthetic", via: "name" };
+  if (lower.includes("jane") && lower.includes("synthetic")) return { id: 4471, displayName: "Jane Austin", via: "name" };
   // for free-text prompts, try to extract a name
   const m = t.match(/jane[^.,\n]*/i);
-  if (m) return { id: 4471, displayName: "Jane Q Synthetic", via: "name:extracted", raw: t };
+  if (m) return { id: 4471, displayName: "Jane Austin", via: "name:extracted", raw: t };
   return { id: null, displayName: t, via: "name", raw: t, unresolved: true };
 }
 function extractGovNameFromPrompt(prompt) {
   const lower = prompt.toLowerCase();
-  if (lower.includes("jane")) return "Jane Q Synthetic";
+  if (lower.includes("jane")) return "Jane Austin";
   const m = prompt.match(/\b([A-Z][a-z]+ [A-Z][a-z]+(?: [A-Z][a-z]+)?)\b/);
   return m ? m[1] : null;
 }
@@ -877,8 +877,8 @@ async function continueAutonomousRun() {
   setRunState("searching");
   // Try to resolve gov name from the current mission — supports full name or ID
   const promptForName = userMissionCopy.textContent || homePrompt.value || "";
-  const gov = extractGovNameFromPrompt(promptForName) || "Jane Q Synthetic";
-  const resolvedGov = resolveGovInput(gov) || { id: 4471, displayName: "Jane Q Synthetic" };
+  const gov = extractGovNameFromPrompt(promptForName) || "Jane Austin";
+  const resolvedGov = resolveGovInput(gov) || { id: 4471, displayName: "Jane Austin" };
   const displayGov = resolvedGov.displayName || gov;
   const subjectId = resolvedGov.id || 4471;
   appendAudit("Confirmed", `Identity match narrowed to ${displayGov} (${subjectId})`);
