@@ -1071,7 +1071,8 @@ function renderRealEvidence(tablesWithData) {
     const name = document.createElement("strong");
     name.textContent = row.website || row.discovered_via || "Connected source";
     const detail = document.createElement("small");
-    detail.textContent = row.detail || `${row.rows} matching ${row.rows === 1 ? "record" : "records"}`;
+    const resultDetail = row.detail || `${row.rows} matching ${row.rows === 1 ? "record" : "records"}`;
+    detail.textContent = row.website ? `Found at ${row.website} · ${resultDetail}` : resultDetail;
     copy.append(name, detail);
     const count = document.createElement("em");
     count.textContent = row.confidence || `${row.rows} ${row.rows === 1 ? "record" : "records"}`;

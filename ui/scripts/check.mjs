@@ -80,6 +80,8 @@ const assertions = [
   ["guided preview hides its trigger", !html.includes("Find information on Jane Austin") && guidedPreviewBody.includes("GUIDED_PREVIEW.requestLabel") && !guidedPreviewBody.includes("userMissionCopy.textContent = cleanPrompt") && guidedPreviewBody.includes("homePrompt.value = \"\"")],
   ["preview completion copy is dynamic", html.includes('id="completion-title"') && html.includes('id="completion-copy"') && js.includes("completionTitle") && js.includes("completionCopy")],
   ["preview sources name websites", js.includes("website:") && js.includes('sourceUnit = tablesWithData.some((row) => row.website)') && js.includes("source.website")],
+  ["source findings identify where they came from", js.includes("Found at") && js.includes("row.website ?") && js.includes("resultDetail")],
+  ["source findings get a larger reading area", css.includes("#source-details[open] .evidence-list article") && css.includes("min-height: 82px") && css.includes("font-size: 13px")],
   ["agent status announced", html.includes('role="status"') && html.includes('aria-live="polite"')],
   ["presence adapts across both views", html.includes('id="home-presence"') && html.includes('id="agent-presence"') && js.includes("class PresenceAgent")],
   ["landing horse uses authored motion frames", html.includes('id="landing-motion"') && js.includes("class HorseMotion") && js.includes("HORSE_FRAME_COUNT = 11") && horseFrames.length === 11 && horseFrames.every((frame) => frame.length > 1000)],
