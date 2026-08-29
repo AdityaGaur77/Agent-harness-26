@@ -42,7 +42,7 @@
         <div class="landing-copy">
           <p class="eyebrow">A personal privacy agent</p>
           <h1 id="landing-title">Your personal data,<br /><em>under your direction.</em></h1>
-          <p id="landing-description">I find it, verify it, and ask before I change anything.</p>
+          <p id="landing-description">Find and verify personal information, then approve every change.</p>
         </div>
         <div class="landing-entry">
           <button class="landing-cta" id="enter-agent" type="button">
@@ -145,11 +145,11 @@
                   </div>
 
                   <h2 id="home-title">What should I find or remove?</h2>
-                  <p class="home-subtitle">Tell me what worries you. I'll decide where to look and ask only when a match is unclear.</p>
+                  <p class="home-subtitle">Share what worries you. The agent decides where to look and asks only when a match is unclear.</p>
 
                   <form class="prompt-card" id="home-form">
                     <label class="sr-only" for="home-prompt">Describe what you want the agent to find or remove</label>
-                    <textarea id="home-prompt" name="mission" rows="2" placeholder="Find my address on people-search sites and remove it." required></textarea>
+                    <textarea id="home-prompt" name="mission" rows="2" placeholder="Find an address on people-search sites and remove it." required></textarea>
                     <div class="prompt-card-footer">
                       <button class="composer-tool" id="add-details" type="button">
                         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
@@ -184,7 +184,7 @@
                 <header class="secondary-panel-header">
                   <div>
                     <h2 id="activity-title">Activity</h2>
-                    <p>What ran, what changed, and where I need you.</p>
+                    <p>What ran, what changed, and where help is needed.</p>
                   </div>
                   <button class="quiet-button" type="button" data-home-panel-target="start">Back</button>
                 </header>
@@ -202,7 +202,7 @@
                 <header class="secondary-panel-header">
                   <div>
                     <h2 id="monitored-title">Watched</h2>
-                    <p>The details I use to tell you apart from someone else.</p>
+                    <p>Details used to distinguish one person from another.</p>
                   </div>
                   <button class="quiet-button" type="button" data-home-panel-target="start">Back</button>
                 </header>
@@ -232,8 +232,8 @@
                     <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12.5 4-6 6 6 6" /></svg>
                   </button>
                   <div>
-                    <h2 id="mission-title">Clear my personal info</h2>
-                    <p class="sr-only" id="mission-status" role="status" aria-live="polite">I found a close match. I need one detail from you.</p>
+                    <h2 id="mission-title">Clear personal information</h2>
+                    <p class="sr-only" id="mission-status" role="status" aria-live="polite">A close match was found. One detail is needed before continuing.</p>
                   </div>
                 </div>
                 <button class="quiet-button mission-details-button" type="button" data-open-details>What it found</button>
@@ -247,7 +247,7 @@
                     </div>
                     <div class="progress-copy">
                       <div class="progress-heading"><strong id="progress-title">Getting ready</strong><span id="run-timer">00:00</span></div>
-                      <p class="sr-only" id="progress-detail">I sort what you asked for.</p>
+                      <p class="sr-only" id="progress-detail">The request is being sorted.</p>
                       <div class="progress-track" id="progress-track" role="progressbar" aria-label="Mission progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="8"><span id="progress-fill"></span></div>
                     </div>
                     <button class="pause-button" id="pause-run" type="button">
@@ -259,7 +259,7 @@
                     <div class="service-error-head">
                       <span class="service-error-icon" aria-hidden="true">!</span>
                       <strong>Service unavailable</strong>
-                      <span id="service-error-detail">I couldn't reach the service. Please try again.</span>
+                      <span id="service-error-detail">The service could not be reached. Please try again.</span>
                     </div>
                     <div class="service-error-actions">
                       <button class="answer-button answer-primary" id="service-retry" type="button">Retry</button>
@@ -267,20 +267,20 @@
                   </div>
 
                   <article class="message message-user">
-                    <div class="message-bubble" id="user-mission-copy">Find and clear my personal info.</div>
+                    <div class="message-bubble" id="user-mission-copy">Find and clear personal information.</div>
                   </article>
 
                   <article class="message message-agent">
                     <div class="agent-message-mark" aria-hidden="true">[br]</div>
                     <div class="message-content agent-prose">
-                      <p>I'll check public records, broker sites, and linked sources. If a match could belong to someone else, I'll ask before I continue.</p>
+                      <p>Public records, broker sites, and linked sources will be checked. If a match could belong to someone else, confirmation will be requested before continuing.</p>
                     </div>
                   </article>
 
                   <section class="activity-card" aria-labelledby="activity-card-title">
                     <button class="activity-card-heading" id="activity-toggle" type="button" aria-expanded="false">
-                      <span><strong id="activity-card-title">What I'm doing</strong></span>
-                      <span class="sr-only" id="activity-summary">I sort your request</span>
+                      <span><strong id="activity-card-title">Current activity</strong></span>
+                      <span class="sr-only" id="activity-summary">Request is being sorted</span>
                       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" /></svg>
                     </button>
                     <div class="activity-card-body" id="activity-body" hidden>
@@ -307,10 +307,10 @@
                     <div class="question-icon" aria-hidden="true">[?]</div>
                     <div class="question-content">
                       <h3 id="identity-question-title">Do you recognize this location?</h3>
-                      <p>I found two close matches. Your answer keeps the search focused on you.</p>
+                      <p>Two close matches were found. This answer keeps the search focused on the right person.</p>
                       <div class="question-actions">
-                        <button class="answer-button answer-primary" type="button" data-identity-answer="yes">Yes, that is me</button>
-                        <button class="answer-button" type="button" data-identity-answer="no">No, not me</button>
+                        <button class="answer-button answer-primary" type="button" data-identity-answer="yes">Yes, that's the right match</button>
+                        <button class="answer-button" type="button" data-identity-answer="no">No, that's not the right match</button>
                       </div>
                     </div>
                   </section>
@@ -319,10 +319,10 @@
                     <div class="agent-message-mark is-complete" aria-hidden="true">✓</div>
                     <div class="message-content agent-prose">
                       <h3>Your review is ready.</h3>
-                      <p>I checked the records connected to your request. Review the findings, then choose what you'd like me to remove.</p>
+                      <p>The connected records were checked. Review the findings, then choose which information to remove.</p>
                       <div class="message-actions">
                         <button class="answer-button answer-primary" type="button" id="delete-action">Delete what you can</button>
-                        <button class="answer-button" type="button" data-open-details>See what I found</button>
+                        <button class="answer-button" type="button" data-open-details>See findings</button>
                       </div>
                       <p class="completion-note">Nothing changes until you approve it.</p>
                     </div>
@@ -336,7 +336,7 @@
                 <label class="sr-only" for="agent-prompt">Ask a question or change the plan</label>
                 <textarea id="agent-prompt" rows="1" placeholder="Ask or change the plan"></textarea>
                 <div class="agent-composer-footer">
-                  <span class="sr-only" id="composer-status">I'll ask only when I need you.</span>
+                  <span class="sr-only" id="composer-status">Questions will appear only when needed.</span>
                   <button class="send-button" type="submit" aria-label="Send message">
                     <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 15.5v-11M5.5 9 10 4.5 14.5 9" /></svg>
                   </button>
@@ -403,7 +403,7 @@
               <label><input type="checkbox" checked data-scope="discover" /><span><strong>Search records</strong><small>Public and linked sources</small></span></label>
               <label><input type="checkbox" checked data-scope="request" /><span><strong>Send opt-outs</strong><small>For firm matches</small></span></label>
               <label><input type="checkbox" checked data-scope="erase" /><span><strong>Apply approved changes</strong><small>After you review them</small></span></label>
-              <p>I'll ask before anything outside these choices.</p>
+              <p>Confirmation will be requested before anything outside these choices.</p>
             </div>
           </details>
 
@@ -437,7 +437,7 @@
           <div><p class="eyebrow">You</p><h2>Add to watch</h2></div>
           <button class="icon-button" value="cancel" aria-label="Close"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg></button>
         </header>
-        <p class="dialog-intro">Add details that help me recognize you and skip lookalikes.</p>
+        <p class="dialog-intro">Add details that help distinguish the right person from lookalikes.</p>
         <label><span>Type</span><select id="identity-type"><option>Name</option><option>Email</option><option>Phone number</option><option>Location</option></select></label>
         <label><span>Info</span><input id="identity-value" type="text" placeholder="Name, email, phone, or place" /></label>
         <div class="dialog-actions"><button class="answer-button" value="cancel">Cancel</button><button class="answer-button answer-primary" id="identity-save" type="submit" value="default">Save</button></div>
