@@ -1,16 +1,16 @@
 # Blast Radius
 
-An erasure agent with a conscience. Ask it to delete everything held for a customer and it will:
+An erasure agent that checks its work before it changes anything. Ask it to delete everything held for a customer and it will:
 
 1. fan out read-only discovery across the foreign-key graph,
 2. order a deletion plan,
-3. **rehearse it on a throwaway shadow copy** and measure what would really be destroyed,
+3. **rehearse it on a throwaway shadow copy** and measure what would actually be destroyed,
 4. discover that the naive delete cascades into rows the law says must survive,
-5. rewrite the plan — hard-delete the personal data, anonymise what must be retained,
+5. rewrite the plan: hard-delete personal data and anonymise what must be retained,
 6. rehearse again, come back clean,
-7. and stop at a human gate before anything irreversible happens.
+7. stop at a human gate before anything irreversible happens.
 
-Built for [The Agent Harness Hackathon](https://wemakedevs.org) on [TrueForge](https://github.com/truefoundry/trueforge). All data is synthetic (Faker-generated); no real personal data anywhere.
+Built for [The Agent Harness Hackathon](https://wemakedevs.org) on [TrueForge](https://github.com/truefoundry/trueforge). All data is synthetic and Faker-generated. No real personal data is used.
 
 ## Quick start
 
@@ -29,10 +29,10 @@ cd packages/agent && npm install && npm run provision
 
 ### Verify the harness behaviour
 
-The MCP package ships an end-to-end smoke suite that replays the whole erasure
-story against a throwaway Postgres: naive plan cascades into tax records,
-retention conflict is measured, revised plan comes back clean, execution
-deletes PII while keeping retained rows.
+The MCP package includes an end-to-end smoke suite that replays the erasure
+story against a throwaway Postgres instance. It measures the naive cascade into
+tax records, checks the retention conflict, verifies the revised plan, and
+confirms that execution deletes PII while keeping retained rows.
 
 ```bash
 docker run -d --name blast-pg-verify -e POSTGRES_USER=blast -e POSTGRES_PASSWORD=blast \
@@ -62,20 +62,20 @@ npm run smoke                                  # third shell, same env vars
 - [x] Runbook (`docs/runbook.md`)
 - [ ] Seed data + rehearsal runner (Nishad)
 - [ ] Skill + scenarios (Amelia)
-- [ ] UI (Aarav)
+- [x] UI (Aarav)
 - [ ] Live TrueForge integration test (connector registration, gate firing in a real session)
 
 ## Deploy
 
-### UI — Vercel (static)
+### UI: Vercel (static)
 `ui/` is static HTML/CSS/JS. `vercel.json` sets `outputDirectory: ui`, no build.
 
 ```bash
 vercel --prod  # or import AdityaGaur77/Agent-harness-26 in Vercel dashboard
 ```
-Set Vercel env `MCP_URL=https://blast-mcp.fly.dev/mcp` and `MCP_AUTH_TOKEN` (same as `.env`). UI auto-detects Fly host when not on localhost, or use Connections dialog to override.
+The static UI auto-detects the Fly URL outside localhost. Enter the MCP URL and token in Connections before starting a live run; the token is kept for the current browser session. Set Vercel env `EXA_API_KEY` only if you want the optional server-side public-web lookup.
 
-### Backend — Fly.io (MCP + Postgres)
+### Backend: Fly.io (MCP + Postgres)
 MCP server is in `packages/mcp-subject-data/`. `fly.toml` deploys it with healthcheck at `/healthz`.
 
 ```bash
@@ -90,7 +90,9 @@ curl -s https://blast-mcp.fly.dev/healthz | grep ok
 
 Local dev still works: `docker compose up -d --build` then `MCP_URL=http://localhost:8080/mcp` in UI.
 
-UI no longer shows synthetic fallback. If harness unreachable, it shows `Harness unreachable` with Retry and Open connections, using real Postgres only.
+The UI does not fall back to synthetic results. If the harness is unreachable,
+it shows `Harness unreachable` with Retry and Open connections. Live runs use
+the connected Postgres instance.
 
 ## AI-use disclosure
 

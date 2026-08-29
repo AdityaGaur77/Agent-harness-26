@@ -5,12 +5,12 @@ Owner: Aditya until 27 Aug, then Nishad.
 
 ## Architecture in one paragraph
 
-TrueForge (harness) connects to our MCP server over streamable HTTP at
+TrueForge (the harness) connects to the MCP server over streamable HTTP at
 `http://mcp-server:8080/mcp` using a bearer token. The server talks to Postgres
 (`blast_main`, production data) and clones it into `blast_shadow` for rehearsals.
 Every tool except `execute_deletion` is annotated read-only; `execute_deletion`
 is annotated destructive AND listed in `requireApprovalForTools`, so the harness
-pauses for a human before running it. That double coverage is intentional:
+pauses for a human before it runs. The two layers are intentional:
 the annotation auto-gates on `@destructive` even if the manifest list changes.
 
 ## Common operations
@@ -37,9 +37,9 @@ DATABASE_URL=postgresql://blast:blast@127.0.0.1:15432/blast_main \
 MCP_URL=http://127.0.0.1:18082 MCP_AUTH_TOKEN=dev-token npm run smoke
 ```
 
-Expect `28 passed, 0 failed`. The suite replays the full story: naive plan ->
-cascade measured -> retention conflict -> revised plan -> clean rehearsal ->
-gated execution -> production state asserted.
+Expect `28 passed, 0 failed`. The suite replays the full story: naive plan,
+measured cascade, retention conflict, revised plan, clean rehearsal, gated
+execution, and an assertion about production state.
 
 ### Provision / re-provision the agent
 

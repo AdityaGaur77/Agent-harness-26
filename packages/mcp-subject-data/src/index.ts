@@ -8,6 +8,7 @@ import { registerExecuteTool } from "./tools/execute.js";
 import { registerRehearseTool } from "./tools/rehearse.js";
 
 const PORT = Number(process.env.PORT ?? 8080);
+const UI_ORIGIN = process.env.UI_ORIGIN?.trim();
 
 function resolveAuthToken(): string {
   const fromEnv = process.env.MCP_AUTH_TOKEN?.trim();
@@ -51,6 +52,22 @@ app.disable("x-powered-by");
 
 app.get("/healthz", (_req, res) => {
   res.json({ status: "ok", service: "mcp-subject-data", time: new Date().toISOString() });
+});
+
+app.use("/mcp", (req, res, next) => {
+  const origin = req.headers.origin;
+  const allowed = Boolean(origin && UI_ORIGIN && origin === UI_ORIGIN);
+  if (allowed) {
+    res.setHeader("Access-Control-Allow-Origin", origin!);
+    res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, MCP-Session-Id");
+    res.setHeader("Access-Control-Allow-Methods", "POST, GET, DELETE, OPTIONS");
+    res.setHeader("Vary", "Origin");
+  }
+  if (req.method === "OPTIONS") {
+    res.sendStatus(allowed ? 204 : 403);
+    return;
+  }
+  next();
 });
 
 app.use("/mcp", express.json({ limit: "4mb" }));

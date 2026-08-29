@@ -23,7 +23,7 @@ That is the usual way an erasure does more than its author intended.
 
 Call the retention-policy tool and read the rows. Do this every time. Do not
 rely on what a previous request concluded, on what the policies were the last
-time you looked, or on any expectation of what they ought to say — they are
+time you looked, or on any expectation of what they ought to say. They are
 data, they change, and the database is the only authority on them.
 
 For every table your plan touches, check that table's entry before you decide

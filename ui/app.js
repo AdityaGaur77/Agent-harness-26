@@ -1,12 +1,12 @@
 const $ = (selector, scope = document) => scope.querySelector(selector);
 const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
 
-const EXA_API_KEY = "c6e0f170-8d73-4029-b3ed-7c7e30bd80ba";
+const EXA_SEARCH_URL = "/api/exa-search";
 
 const body = document.body;
 const skipLink = $(".skip-link");
 const landingView = $("#landing-view");
-const landingAscii = $("#landing-ascii");
+const landingMotion = $("#landing-motion");
 const enterAgentButton = $("#enter-agent");
 const appShell = $("#app-shell");
 const homeView = $("#home-view");
@@ -38,6 +38,9 @@ const activitySummary = $("#activity-summary");
 const subagentList = $("#subagent-list");
 const subagentCount = $("#subagent-count");
 const evidenceList = $("#evidence-list");
+const sourceSummary = $("#source-summary");
+const matchStatus = $("#match-status");
+const permissionsSummary = $("#permissions-summary");
 const impactState = $("#impact-state");
 const impactCopy = $("#impact-copy");
 const auditList = $("#audit-list");
@@ -49,7 +52,7 @@ const connectorDialog = $("#connector-dialog");
 const connectorResult = $("#connector-result");
 const identityDialog = $("#identity-dialog");
 
-const VIEW_TRANSITION_MS = 320;
+const VIEW_TRANSITION_MS = 280;
 const ENTRY_STORAGE_KEY = "blast_radius_has_entered";
 
 const RUN_STATES = [
@@ -81,29 +84,29 @@ const stateCopy = {
   },
   question: {
     title: "Needs you",
-    detail: "One answer keeps the search on you.",
+    detail: "One answer keeps the search focused on you.",
     mission: "Needs one detail",
     progress: 24,
     aria: "The agent needs one answer",
   },
   searching: {
-    title: "I search",
+    title: "I review your sources",
     detail: "I check brokers, records, and linked accounts.",
-    mission: "I search in parallel",
+    mission: "I review your sources",
     progress: 48,
-    aria: "The agent searches in parallel",
+    aria: "The agent reviews your sources",
   },
   rehearsing: {
-    title: "I test the plan",
-    detail: "I run the plan in a safe copy.",
-    mission: "I test what can change",
+    title: "I review the changes",
+    detail: "I check what will change before I act.",
+    mission: "I review what can change",
     progress: 70,
-    aria: "The agent tests the plan",
+    aria: "The agent reviews what can change",
   },
   executing: {
-    title: "I delete what you allow",
-    detail: "I clear what the law permits.",
-    mission: "I delete what you allow",
+    title: "I apply your choices",
+    detail: "I make only the changes you approve.",
+    mission: "I apply your choices",
     progress: 86,
     aria: "The agent deletes what you allow",
   },
@@ -115,11 +118,11 @@ const stateCopy = {
     aria: "The agent checks the result",
   },
   complete: {
-    title: "Ready to delete",
-    detail: "42 records checked. Say delete and I clear what the law allows.",
-    mission: "Ready. Say delete.",
+    title: "Ready to review",
+    detail: "Your request is ready to review.",
+    mission: "Ready to review.",
     progress: 100,
-    aria: "Plan ready. Say delete to clear what the law allows",
+    aria: "Your request is ready to review",
   },
   error: {
     title: "Paused with care",
@@ -130,16 +133,6 @@ const stateCopy = {
   },
 };
 
-const evidenceFixture = [
-  { mark: "P", name: "People-search listing", detail: "Address and phone", confidence: "72%" },
-  { mark: "A", name: "Address broker record", detail: "Earlier residence", confidence: "68%" },
-  { mark: "C", name: "Consumer profile", detail: "Email and age range", confidence: "83%" },
-  { mark: "V", name: "Voter index", detail: "Public registration", confidence: "91%" },
-  { mark: "L", name: "Linked account", detail: "Alias and username", confidence: "77%" },
-  { mark: "R", name: "Property record", detail: "Earlier mailing address", confidence: "88%" },
-  { mark: "D", name: "Data broker profile", detail: "Household relationship", confidence: "79%" },
-];
-
 const subagentPlan = [
   { key: "identity", label: "Match your identity" },
   { key: "brokers", label: "Check data brokers" },
@@ -148,52 +141,24 @@ const subagentPlan = [
   { key: "web", label: "Search the web" },
 ];
 
-const missionPresets = {
-  "remove-personal-info": {
-    title: "Remove my personal information",
-    prompt: "Find and remove my personal information.",
-    mode: "question",
-  },
-  "broker-opt-out": {
-    title: "Opt out of data brokers",
-    prompt: "Remove me from data broker and people-search sites.",
-    mode: "complete",
-  },
-  "address-check": {
-    title: "Check my exposed address",
-    prompt: "Find where my home address is listed online.",
-    mode: "complete",
-  },
-};
-
 const standingAuthorization = {
   discover: true,
   request: true,
   erase: true,
 };
 
-// Live harness + gov-name support — replaces synthetic-only flow
-const govNameToId = { "jane q synthetic": 4471, "jane synthetic": 4471, jane: 4471 };
-const idToGovName = { 4471: "Jane Q Synthetic" };
+// Resolve a customer-provided name before searching connected services.
 function normalizeGovInput(s) { return s.trim().replace(/\s+/g, " "); }
 function resolveGovInput(raw) {
   const t = normalizeGovInput(raw);
   if (!t) return null;
   if (/^\d+$/.test(t)) {
     const id = Number(t);
-    return { id, displayName: idToGovName[id] || t, via: "id" };
+    return { id, displayName: t, via: "id" };
   }
-  const lower = t.toLowerCase();
-  if (govNameToId[lower] != null) return { id: govNameToId[lower], displayName: idToGovName[govNameToId[lower]], via: "name" };
-  if (lower.includes("jane") && lower.includes("synthetic")) return { id: 4471, displayName: "Jane Q Synthetic", via: "name" };
-  // for free-text prompts, try to extract a name
-  const m = t.match(/jane[^.,\n]*/i);
-  if (m) return { id: 4471, displayName: "Jane Q Synthetic", via: "name:extracted", raw: t };
-  return { id: null, displayName: t, via: "name", raw: t, unresolved: true };
+  return { id: null, displayName: t, via: "name", raw: t };
 }
 function extractGovNameFromPrompt(prompt) {
-  const lower = prompt.toLowerCase();
-  if (lower.includes("jane")) return "Jane Q Synthetic";
   const m = prompt.match(/\b([A-Z][a-z]+ [A-Z][a-z]+(?: [A-Z][a-z]+)?)\b/);
   return m ? m[1] : null;
 }
@@ -214,14 +179,16 @@ function resolveMcpUrl() {
 function resolveMcpToken() {
   const injected = typeof window !== "undefined" && window.__MCP_TOKEN__ && window.__MCP_TOKEN__ !== "__MCP_TOKEN__" ? String(window.__MCP_TOKEN__).trim() : "";
   if (injected) return injected;
+  const fromSession = sessionStorage.getItem("blast_mcp_token");
+  if (fromSession && fromSession.trim()) return fromSession.trim();
   const fromStorage = localStorage.getItem("blast_mcp_token");
   if (fromStorage && fromStorage.trim()) return fromStorage.trim();
   const el = document.getElementById("connector-token");
   if (el && el.value) return el.value.trim();
-  return "change-me-dev-token";
+  return "";
 }
 
-// Simple MCP client for browser — uses streamable HTTP with bearer
+// Simple MCP client for the browser; uses streamable HTTP with bearer auth
 let mcpSessionId = sessionStorage.getItem("blast_mcp_session") || null;
 async function mcpCall(url, token, method, params) {
   const headers = { "content-type": "application/json", accept: "application/json, text/event-stream", Authorization: `Bearer ${token}` };
@@ -230,25 +197,27 @@ async function mcpCall(url, token, method, params) {
   const sess = res.headers.get("mcp-session-id") || res.headers.get("Mcp-Session-Id");
   if (sess) { mcpSessionId = sess; sessionStorage.setItem("blast_mcp_session", sess); }
   const text = await res.text();
-  // Streamable HTTP returns SSE data: lines — find the JSON payload
+  if (!res.ok) throw new Error(`MCP request failed (${res.status})`);
+  // Streamable HTTP returns SSE data lines; find the JSON payload
   const dataLine = text.split("\n").find((l) => l.trim().startsWith("data:"));
   const jsonStr = dataLine ? dataLine.slice(5).trim() : text;
-  try { return JSON.parse(jsonStr); } catch { return { raw: text }; }
+  let payload;
+  try { payload = JSON.parse(jsonStr); } catch { throw new Error("MCP returned an invalid response"); }
+  if (payload?.error) throw new Error(payload.error.message || "MCP request failed");
+  return payload;
 }
 async function mcpTool(url, token, name, args) {
   const r = await mcpCall(url, token, "tools/call", { name, arguments: args });
+  if (r?.result?.isError) throw new Error(r.result.content?.[0]?.text || `${name} failed`);
   const c = r?.result?.content?.[0]?.text || r?.raw || "";
-  try { return JSON.parse(c); } catch { return { _raw: c, _error: r?.error }; }
+  try { return JSON.parse(c); } catch { throw new Error(`${name} returned an invalid payload`); }
 }
 
 async function exaSearch(query, options = {}) {
   try {
-    const res = await fetch("https://api.exa.ai/search", {
+    const res = await fetch(EXA_SEARCH_URL, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": EXA_API_KEY
-      },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({
         query,
         numResults: options.numResults ?? 10,
@@ -268,33 +237,46 @@ async function exaSearch(query, options = {}) {
 async function updateHarnessStatus() {
   const urlEl = document.getElementById("connector-url");
   const tokenEl = document.getElementById("connector-token");
-  const statusTitle = document.getElementById("harness-status-title");
-  const statusCopy = document.getElementById("harness-status-copy");
+  const statusTitle = document.getElementById("workspace-status-title");
+  const statusCopy = document.getElementById("workspace-status-copy");
   const topbarStatus = document.getElementById("topbar-status");
   const url = resolveMcpUrl();
   const tokenForStatus = resolveMcpToken();
   const isFly = url.includes("fly.dev");
-  if (statusTitle) statusTitle.textContent = isFly ? "Remote harness" : "Local harness";
+  if (statusTitle) statusTitle.textContent = "Connected services";
   if (statusCopy) {
     try {
-      statusCopy.textContent = `${new URL(url).host} · checking connection`;
+      statusCopy.textContent = "Checking your connected services";
     } catch {
-      statusCopy.textContent = "Checking connection";
+      statusCopy.textContent = "Checking your connected services";
     }
   }
-  if (topbarStatus) topbarStatus.innerHTML = `<span aria-hidden="true"></span>${isFly ? "Remote" : "Local"} harness`;
+  if (topbarStatus) topbarStatus.innerHTML = '<span aria-hidden="true"></span>Connected services';
   localStorage.setItem("blast_mcp_url", url);
-  if (tokenEl?.value) localStorage.setItem("blast_mcp_token", tokenEl.value);
-  else if (tokenForStatus && tokenForStatus !== "change-me-dev-token") localStorage.setItem("blast_mcp_token", tokenForStatus);
+  if (tokenEl?.value) sessionStorage.setItem("blast_mcp_token", tokenEl.value);
+  else if (tokenForStatus) sessionStorage.setItem("blast_mcp_token", tokenForStatus);
   if (urlEl && !urlEl.value) urlEl.value = url;
   try {
     const healthUrl = new URL(url).origin + "/healthz";
     const h = await fetch(healthUrl);
-    if (h.ok && statusCopy) statusCopy.textContent = "Connected. Real tools are available.";
-    else if (statusCopy) statusCopy.textContent = "Demo only. Nothing real changes.";
+    if (h.ok && statusCopy) statusCopy.textContent = "Connected and ready";
+    else if (statusCopy) statusCopy.textContent = "Service unavailable. Try again when ready.";
   } catch {
-    if (statusCopy) statusCopy.textContent = "Demo only. Nothing real changes.";
+    if (statusCopy) statusCopy.textContent = "Service unavailable. Try again when ready.";
   }
+}
+
+function persistConnectorConfig() {
+  const url = $("#connector-url")?.value.trim();
+  const token = $("#connector-token")?.value.trim();
+  if (url) localStorage.setItem("blast_mcp_url", url);
+  if (token) sessionStorage.setItem("blast_mcp_token", token);
+  const statusCopy = $("#workspace-status-copy");
+  const statusTitle = $("#workspace-status-title");
+  const topbarStatus = $("#topbar-status");
+  if (url && statusCopy) statusCopy.textContent = "Connected and ready";
+  if (statusTitle) statusTitle.textContent = "Connected services";
+  if (topbarStatus) topbarStatus.innerHTML = '<span aria-hidden="true"></span>Connected';
 }
 
 const run = {
@@ -307,9 +289,12 @@ const run = {
   timerId: null,
   lastFocus: null,
   waitingForLocation: false,
+  pendingQuestion: null,
+  liveData: null,
+  evidence: [],
 };
 
-class AsciiAgent {
+class PresenceAgent {
   constructor(element, options) {
     this.element = element;
     this.columns = options.columns;
@@ -437,7 +422,7 @@ class AsciiAgent {
         if (this.state === "rehearsing") {
           const diamond = Math.abs(x) + Math.abs(y * 1.42);
           if (Math.abs(diamond - (0.46 + pulse)) < 0.022) character = "·";
-          if (Math.abs(diamond - (0.46 + pulse)) < 0.012) character = "◷".length ? "·" : "·";
+          if (Math.abs(diamond - (0.46 + pulse)) < 0.012) character = "·";
         }
 
         if (this.state === "executing" && Math.abs(y) < 0.032 && Math.abs(x) < 0.66) {
@@ -540,7 +525,7 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-class HorseAsciiAgent {
+class HorseMotion {
   constructor(element) {
     this.element = element;
     this.context = element.getContext("2d", { alpha: true });
@@ -792,10 +777,10 @@ class HorseAsciiAgent {
   }
 }
 
-const homeAscii = new AsciiAgent($("#home-ascii"), { columns: 112, rows: 25, home: true });
-const agentAscii = new AsciiAgent($("#agent-ascii"), { columns: 60, rows: 15 });
-const sidebarAscii = new AsciiAgent($("#sidebar-ascii"), { columns: 32, rows: 7 });
-const landingHorse = new HorseAsciiAgent(landingAscii);
+const homePresence = new PresenceAgent($("#home-presence"), { columns: 112, rows: 25, home: true });
+const agentPresence = new PresenceAgent($("#agent-presence"), { columns: 60, rows: 15 });
+const sidebarPresence = new PresenceAgent($("#sidebar-presence"), { columns: 32, rows: 7 });
+const landingHorse = new HorseMotion(landingMotion);
 
 function animateView(view) {
   view.classList.remove("is-entering");
@@ -816,9 +801,9 @@ function setView(nextView) {
     appShell.setAttribute("aria-hidden", "true");
     homeView.hidden = false;
     agentView.hidden = true;
-    homeAscii.setActive(false);
-    agentAscii.setActive(false);
-    sidebarAscii.setActive(false);
+    homePresence.setActive(false);
+    agentPresence.setActive(false);
+    sidebarPresence.setActive(false);
     landingHorse.resize();
     landingHorse.setActive(true);
     closeSidebar();
@@ -834,9 +819,9 @@ function setView(nextView) {
   landingView.setAttribute("aria-hidden", "true");
   appShell.hidden = false;
   appShell.removeAttribute("aria-hidden");
-  homeAscii.setActive(!showAgent);
-  agentAscii.setActive(showAgent);
-  sidebarAscii.setActive(true);
+  homePresence.setActive(!showAgent);
+  agentPresence.setActive(showAgent);
+  sidebarPresence.setActive(true);
   landingHorse.setActive(false);
   homeView.hidden = showAgent;
   agentView.hidden = !showAgent;
@@ -920,10 +905,13 @@ function openDetails(sectionId) {
   window.setTimeout(() => {
     if (sectionId) {
       const section = $("#" + sectionId);
-      if (section) section.scrollIntoView({ block: "start" });
+      if (section instanceof HTMLDetailsElement) section.open = true;
+      const disclosure = section?.closest("details");
+      if (disclosure) disclosure.open = true;
+      if (section) section.scrollIntoView({ block: "nearest" });
     }
     detailsClose.focus();
-  }, 180);
+  }, 160);
 }
 
 function closeDetails() {
@@ -943,9 +931,9 @@ function setRunState(nextState) {
   missionStatus.textContent = copy.mission;
   progressFill.style.width = copy.progress + "%";
   progressTrack.setAttribute("aria-valuenow", String(copy.progress));
-  agentAscii.setState(nextState);
-  sidebarAscii.setState(nextState);
-  homeAscii.setState(nextState === "complete" ? "complete" : nextState === "error" ? "error" : "idle");
+  agentPresence.setState(nextState);
+  sidebarPresence.setState(nextState);
+  homePresence.setState(nextState === "complete" ? "complete" : nextState === "error" ? "error" : "idle");
   runAnnouncement.textContent = copy.aria;
   activitySummary.textContent = copy.title;
   body.classList.toggle("is-complete", nextState === "complete");
@@ -955,10 +943,10 @@ function setRunState(nextState) {
       '<span class="status-dot is-waiting" aria-hidden="true"></span>Answer and I continue.';
   } else if (nextState === "complete") {
     composerStatus.innerHTML =
-      '<span class="status-check" aria-hidden="true">✓</span>Say delete and I clear what the law allows.';
+      '<span class="status-check" aria-hidden="true">✓</span>Your request is ready for approval.';
   } else {
     composerStatus.innerHTML =
-      '<span class="status-dot is-ready" aria-hidden="true"></span>I’ll keep going inside your scope.';
+      "<span class=\"status-dot is-ready\" aria-hidden=\"true\"></span>I'll keep working on your request.";
   }
 }
 
@@ -998,55 +986,25 @@ function setSubagentState(key, status, label) {
   if (signal) signal.textContent = { ready: "[ ]", active: "[>]", done: "[x]" }[status];
   $("small", item).textContent = label || { ready: "Ready", active: "Working", done: "Done" }[status];
   const active = $$(".parallel-grid > .is-active").length;
-  subagentCount.textContent = active + " of " + subagentPlan.length + " active";
+  subagentCount.textContent = active + " active";
 }
 
 function resetSubagents() {
   subagentPlan.forEach((agent) => setSubagentState(agent.key, "ready"));
   subagentList.hidden = true;
-  subagentCount.textContent = "0 of 5 active";
-}
-
-function renderEvidence(limit = 2, complete = false) {
-  evidenceList.textContent = "";
-  evidenceFixture.slice(0, limit).forEach((item) => {
-    const article = document.createElement("article");
-    const mark = document.createElement("span");
-    mark.className = "source-mark";
-    mark.setAttribute("aria-hidden", "true");
-    mark.textContent = item.mark;
-    const copy = document.createElement("div");
-    const name = document.createElement("strong");
-    name.textContent = item.name;
-    const detail = document.createElement("small");
-    detail.textContent = item.detail;
-    copy.append(name, detail);
-    const confidence = document.createElement("em");
-    confidence.textContent = item.confidence;
-    article.append(mark, copy, confidence);
-    evidenceList.append(article);
-  });
-
-  if (!complete && limit < evidenceFixture.length) {
-    const pending = document.createElement("article");
-    pending.className = "is-pending";
-    pending.innerHTML =
-      '<span class="source-mark" aria-hidden="true">+</span>' +
-      "<div><strong>" +
-      (evidenceFixture.length - limit) +
-      " more groups</strong><small>Waits for your answer</small></div><em>Queued</em>";
-    evidenceList.append(pending);
-  }
+  subagentCount.textContent = "0 active";
 }
 
 function renderRealEvidence(tablesWithData) {
   evidenceList.textContent = "";
   if (!tablesWithData || tablesWithData.length === 0) {
     const empty = document.createElement("article");
-    empty.innerHTML = '<span class="source-mark" aria-hidden="true">[ ]</span><div><strong>No linked rows found</strong><small>Real data from Postgres</small></div><em>0</em>';
+    empty.innerHTML = '<span class="source-mark" aria-hidden="true">+</span><div><strong>No sources found</strong><small>Try a different search</small></div><em>0</em>';
     evidenceList.append(empty);
+    sourceSummary.textContent = "No sources yet";
     return;
   }
+  sourceSummary.textContent = `${tablesWithData.length} ${tablesWithData.length === 1 ? "source" : "sources"} found`;
   tablesWithData.forEach((row) => {
     const article = document.createElement("article");
     const mark = document.createElement("span");
@@ -1055,18 +1013,81 @@ function renderRealEvidence(tablesWithData) {
     mark.textContent = (row.table?.[0] || "T").toUpperCase();
     const copy = document.createElement("div");
     const name = document.createElement("strong");
-    name.textContent = row.table || "unknown";
+    name.textContent = row.discovered_via || "Connected source";
     const detail = document.createElement("small");
-    detail.textContent = row.discovered_via ? row.discovered_via.slice(0, 48) : `${row.rows} rows`;
+    detail.textContent = `${row.rows} matching ${row.rows === 1 ? "record" : "records"}`;
     copy.append(name, detail);
-    const confidence = document.createElement("em");
-    confidence.textContent = `${row.rows}`;
-    article.append(mark, copy, confidence);
+    const count = document.createElement("em");
+    count.textContent = `${row.rows} ${row.rows === 1 ? "record" : "records"}`;
+    article.append(mark, copy, count);
     evidenceList.append(article);
   });
 }
 
+function setImpactValues(values) {
+  const impactGrid = $(".impact-grid", detailsDrawer);
+  values.forEach((value, index) => {
+    const target = $$("dd", impactGrid)[index];
+    if (target) target.textContent = String(value);
+  });
+}
+
+function updatePermissionsSummary() {
+  const enabled = Object.values(standingAuthorization).filter(Boolean).length;
+  permissionsSummary.textContent = `${enabled} enabled`;
+}
+
+function clearUnavailableDetails() {
+  run.evidence = [];
+  renderRealEvidence([]);
+  const match = document.querySelector("#details-drawer .match-person");
+  const matchName = $("strong", match);
+  const matchLocation = $("span", match);
+  const matchMeta = $("small", match);
+  if (matchName) matchName.textContent = "No match yet";
+  if (matchLocation) matchLocation.textContent = "No match yet";
+  if (matchMeta) matchMeta.textContent = "Start a search to see results";
+  matchStatus.textContent = "Not matched";
+  setImpactValues(["Unavailable", "Unavailable", "Unavailable", "Unavailable"]);
+  const safetyResult = $(".safety-result", detailsDrawer);
+  if (safetyResult) safetyResult.hidden = true;
+  const technicalNote = $(".technical-note", detailsDrawer);
+  if (technicalNote) technicalNote.textContent = "Start a search to see what was found and what can change.";
+}
+
+function showServiceError(message = "Check your connection, then try again.") {
+  setRunState("error");
+  clearUnavailableDetails();
+  impactState.textContent = "Service unavailable";
+  impactCopy.textContent = "I couldn't reach the service. Please try again.";
+  const errorElement = $("#service-error");
+  const detail = $("#service-error-detail");
+  if (detail) detail.textContent = message;
+  if (errorElement) errorElement.hidden = false;
+  missionStatus.textContent = "Service unavailable";
+  composerStatus.innerHTML = '<span class="status-dot" aria-hidden="true"></span>Please try again.';
+  pauseButton.disabled = true;
+  scrollConversation(errorElement || $("#service-error"));
+}
+
+function resetDetails() {
+  const match = document.querySelector("#details-drawer .match-person");
+  const matchName = $("strong", match);
+  const matchLocation = $("span", match);
+  const matchMeta = $("small", match);
+  if (matchName) matchName.textContent = "Potential match";
+  if (matchLocation) matchLocation.textContent = "Location pending";
+  if (matchMeta) matchMeta.textContent = "Confirm the details before continuing";
+  matchStatus.textContent = "Needs review";
+  setImpactValues(["Pending", "Pending", "Pending", "Pending"]);
+  const safetyResult = $(".safety-result", detailsDrawer);
+  if (safetyResult) safetyResult.hidden = true;
+  const technicalNote = $(".technical-note", detailsDrawer);
+  if (technicalNote) technicalNote.textContent = "You'll see what was found and what will change before you approve anything.";
+}
+
 function appendAudit(type, message) {
+  auditList.querySelector(".audit-empty")?.remove();
   const item = document.createElement("li");
   const time = document.createElement("time");
   time.textContent = new Date().toLocaleTimeString([], {
@@ -1150,25 +1171,27 @@ function resetMission(options = {}) {
   run.generation += 1;
   run.paused = false;
   run.waitingForLocation = false;
+  run.pendingQuestion = null;
+  run.liveData = null;
+  run.evidence = [];
   body.classList.remove("is-paused", "is-complete");
-  agentAscii.setPaused(false);
-  sidebarAscii.setPaused(false);
+  agentPresence.setPaused(false);
+  sidebarPresence.setPaused(false);
   pauseButton.disabled = false;
   pauseButton.innerHTML =
     '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5v10M13 5v10" /></svg><span>Pause</span>';
   identityQuestion.hidden = true;
   completionMessage.hidden = true;
-  const harnessErrorEl = document.getElementById("harness-error");
-  if (harnessErrorEl) harnessErrorEl.hidden = true;
+  const serviceErrorEl = document.getElementById("service-error");
+  if (serviceErrorEl) serviceErrorEl.hidden = true;
   clearDynamicMessages();
   resetSteps();
   resetSubagents();
+  resetDetails();
   renderRealEvidence([]);
   impactState.textContent = "Not started";
-  impactCopy.textContent = "I test the plan in a safe copy before I change anything.";
-  auditList.innerHTML =
-    "<li><time>10:32:08</time><span>Started</span><strong>You asked to clear personal info</strong></li>" +
-    "<li><time>10:32:09</time><span>Wait</span><strong>Needs one answer on Nashville</strong></li>";
+  impactCopy.textContent = "Review the findings before anything changes.";
+  auditList.innerHTML = "<li class=\"audit-empty\"><strong>Your activity will appear here.</strong></li>";
   if (!options.keepPrompt) agentPrompt.value = "";
   setRunState("idle");
   stopTimer();
@@ -1194,8 +1217,7 @@ async function startMission(prompt) {
   setRunState("reasoning");
   startTimer();
   const govExtract = extractGovNameFromPrompt(cleanPrompt);
-  const govNote = govExtract ? `, gov name "${govExtract}"` : "";
-  appendAudit("Started", `Request understood${govNote}`);
+  appendAudit("Started", "Request understood");
 
   if (!(await waitFor(650, generation))) return;
   setStep("understand", "complete");
@@ -1204,21 +1226,21 @@ async function startMission(prompt) {
   setSubagentState("identity", "active");
   setSubagentState("brokers", "active");
   setRunState("searching");
-  const harnessUrlTmp = resolveMcpUrl();
-  const hasGov = govExtract && resolveGovInput(govExtract) && !resolveGovInput(govExtract).unresolved;
-  appendAudit("Search", hasGov ? `Likely sources mapped for ${govExtract}` : "Likely sources mapped");
+  const hasGov = Boolean(govExtract);
+  appendAudit("Search", hasGov ? "Likely sources mapped" : "Waiting for one detail");
 
   if (!(await waitFor(900, generation))) return;
-  // If we already have a clear gov name, skip the Nashville question and go straight to autonomous run
+      // If the request includes a full name, continue without another identity question.
   if (hasGov) {
-    appendAudit("Gov name", `Full government name resolved: ${govExtract} → ${resolveGovInput(govExtract).id}`);
+    appendAudit("Identity", "Identity details confirmed");
     // Update identity card with gov name
     const idCardStrong = document.querySelector(".identity-card strong");
     if (idCardStrong) idCardStrong.textContent = govExtract;
     const topIdentity = document.querySelector("#details-drawer .match-person strong");
     if (topIdentity) topIdentity.textContent = govExtract;
     const matchSmall = document.querySelector("#details-drawer .match-person small");
-    if (matchSmall) matchSmall.textContent = `Gov name · ${resolveGovInput(govExtract).id}`;
+    if (matchSmall) matchSmall.textContent = "Name provided by you";
+    matchStatus.textContent = "Name provided";
     await continueAutonomousRun();
     return;
   }
@@ -1230,12 +1252,12 @@ function askIdentityQuestion() {
   setSubagentState("identity", "done");
   setSubagentState("brokers", "ready");
   identityQuestion.hidden = false;
-  identityQuestionTitle.textContent = "Did you live in Nashville?";
-  appendAudit("Needs you", "Waits for answer on Nashville");
+  identityQuestionTitle.textContent = "Do you recognize this location?";
+  appendAudit("Needs you", "Waiting for confirmation");
   scrollConversation(identityQuestion);
 }
 
-async function continueAutonomousRun() {
+async function continueAutonomousRun(identityInput = "") {
   run.generation += 1;
   const generation = run.generation;
   identityQuestion.hidden = true;
@@ -1243,15 +1265,24 @@ async function continueAutonomousRun() {
   subagentList.hidden = false;
   subagentPlan.forEach((agent) => setSubagentState(agent.key, "active"));
   setRunState("searching");
-  // Try to resolve gov name from the current mission — supports full name or ID
-  const promptForName = userMissionCopy.textContent || homePrompt.value || "";
-  const gov = extractGovNameFromPrompt(promptForName) || "Jane Q Synthetic";
-  const resolvedGov = resolveGovInput(gov) || { id: 4471, displayName: "Jane Q Synthetic" };
-  const displayGov = resolvedGov.displayName || gov;
-  const subjectId = resolvedGov.id || 4471;
-  appendAudit("Confirmed", `Identity match narrowed to ${displayGov} (${subjectId})`);
+  // Try to resolve the government name from the current mission; supports a full name or ID
+  const promptForName = identityInput || userMissionCopy.textContent || homePrompt.value || "";
+  const gov = extractGovNameFromPrompt(promptForName);
+  const resolvedGov = resolveGovInput(gov || identityInput);
+  if (!resolvedGov || !resolvedGov.displayName) {
+    setRunState("question");
+    appendAgentMessage("I need your full name before I search. That keeps the results on you.");
+    agentPrompt.placeholder = "Enter the full name you want me to check";
+    agentPrompt.focus();
+    run.waitingForLocation = true;
+    run.pendingQuestion = "name";
+    return;
+  }
+  const displayGov = resolvedGov.displayName || gov || promptForName;
+  const subjectId = resolvedGov.id;
+  appendAudit("Confirmed", "Identity match narrowed to your details");
 
-  // Attempt live harness if configured — otherwise demo
+  // Use the connected service for this request.
   const harnessUrl = resolveMcpUrl();
   const harnessToken = resolveMcpToken();
 
@@ -1261,145 +1292,148 @@ async function continueAutonomousRun() {
   const webResults = await exaSearch(webQuery, { numResults: 10 });
   setSubagentState("web", "done");
   if (webResults.results && webResults.results.length > 0) {
-    renderRealEvidence(webResults.results.map((r, i) => ({
+    run.evidence = webResults.results.map((r) => ({
       table: `web:${new URL(r.url).hostname}`,
       rows: 1,
       discovered_via: r.title || r.url
-    })));
-    appendAudit("Web search", `Exa found ${webResults.results.length} public listings for ${displayGov}`);
+    }));
+    renderRealEvidence(run.evidence);
+    appendAudit("Search", `Found ${webResults.results.length} public listings for ${displayGov}`);
   } else {
-    appendAudit("Web search", `Exa found no public listings for ${displayGov}`);
+    appendAudit("Search", `No public listings found for ${displayGov}`);
   }
 
-  const modelEl = document.getElementById("connector-model");
-  const modelName = modelEl?.value || localStorage.getItem("blast_model") || "unorouter/gpt-oss-120b:free";
   let liveSuccess = false;
   let liveData = null;
   if (harnessUrl && harnessToken) {
     try {
-      // Try live: lookup + find + retention check
+      // Find the matching profile and review the connected records.
       const lookup = await mcpTool(harnessUrl, harnessToken, "lookup_subject_by_name", { full_name: displayGov, limit: 5 });
-      const match = lookup?.matches?.[0] || { id: subjectId, full_name: displayGov };
-      const sid = Number(match.id) || subjectId;
+      const match = lookup?.matches?.[0];
+      if (!match?.id) throw new Error("No matching subject was found");
+      const sid = Number(match.id);
+      if (!sid) throw new Error("The subject match has no valid id");
       if (!(await waitFor(520, generation))) return;
       setSubagentState("identity", "done");
-      // Try real schema/tools
+      // Load the connected records.
       const schema = await mcpTool(harnessUrl, harnessToken, "inspect_schema", {});
-      const tables = schema?.tables?.length || 7;
-      appendAudit("Tool", `inspect_schema mapped ${tables} related tables` + (lookup ? `, matched ${match.full_name}` : ""));
+      if (!Array.isArray(schema?.tables)) throw new Error("inspect_schema returned no tables");
+      const tables = schema.tables.length;
+      appendAudit("Review", `Reviewed ${tables} connected sources` + (lookup ? ", match found" : ""));
       if (!(await waitFor(440, generation))) return;
       setSubagentState("brokers", "done");
       const fks = await mcpTool(harnessUrl, harnessToken, "list_foreign_keys", {});
-      appendAudit("Tool", `list_foreign_keys traced ${fks?.foreign_keys?.length || 6} links`);
+      if (!Array.isArray(fks?.foreign_keys)) throw new Error("list_foreign_keys returned no links");
+      appendAudit("Review", `Reviewed ${fks.foreign_keys.length} linked records`);
+      const policies = await mcpTool(harnessUrl, harnessToken, "get_retention_policies", {});
+      if (!Array.isArray(policies?.retention_policies)) throw new Error("get_retention_policies returned no policies");
+      appendAudit("Review", `Confirmed ${policies.retention_policies.length} records can be handled safely`);
       if (!(await waitFor(440, generation))) return;
       const subjectData = await mcpTool(harnessUrl, harnessToken, "find_subject_data", { subject_id: sid });
-      const total = subjectData?.total_rows_referencing_subject || 42;
-      const tablesWithData = subjectData?.tables_with_subject_data || [];
+      if (typeof subjectData?.total_rows_referencing_subject !== "number" || !Array.isArray(subjectData?.tables_with_subject_data)) {
+        throw new Error("find_subject_data returned an invalid payload");
+      }
+      const total = subjectData.total_rows_referencing_subject;
+      const tablesWithData = subjectData.tables_with_subject_data;
+      run.evidence = [...run.evidence, ...tablesWithData];
+      renderRealEvidence(run.evidence);
       // Update identity card and evidence with live data
       const idCard = document.querySelector(".identity-card strong");
       if (idCard) idCard.textContent = match.full_name || displayGov;
-      renderRealEvidence(tablesWithData);
+      const resultMatch = document.querySelector("#details-drawer .match-person");
+      const resultName = $("strong", resultMatch);
+      const resultLocation = $("span", resultMatch);
+      const resultMeta = $("small", resultMatch);
+      if (resultName) resultName.textContent = match.full_name || displayGov;
+      if (resultLocation) resultLocation.textContent = "Connected record";
+      if (resultMeta) resultMeta.textContent = "Matched by name in the connected source";
+      matchStatus.textContent = "Possible match";
+      setImpactValues([total, "Checking", "Checking", "Checking"]);
       setSubagentState("records", "done");
       setSubagentState("links", "done");
-      renderRealEvidence(tablesWithData);
       setStep("search", "complete");
       setStep("check", "active");
       setRunState("rehearsing");
-      impactState.textContent = "Testing";
-      impactCopy.textContent = `I test a direct delete against a safe plan for ${total} records. 5.6 per name.`;
-      appendAudit("Tool", "Checked what the law keeps");
-      appendAudit("Tool", `Found ${total} linked records` + (tablesWithData.length ? ` in ${tablesWithData.length} tables` : ""));
-      appendAudit("Safety check", "snapshot_to_shadow preserved a rollback point");
-      // Try snapshot + rehearse
-      try {
-        await mcpTool(harnessUrl, harnessToken, "snapshot_to_shadow", {});
-        appendAudit("Safety check", "snapshot_to_shadow cloned to blast_shadow");
-      } catch {}
+      impactState.textContent = "Reviewing";
+      impactCopy.textContent = `I found ${total} connected ${total === 1 ? "record" : "records"}. I'll show you what can change.`;
+      appendAudit("Review", "Checked which records can be changed");
+      appendAudit("Review", `Found ${total} connected records` + (tablesWithData.length ? ` across ${tablesWithData.length} sources` : ""));
+      appendAudit("Review", "Prepared a change review");
+      // Prepare the change review.
+      await mcpTool(harnessUrl, harnessToken, "snapshot_to_shadow", {});
       const naivePlan = { subject_id: sid, steps: [{ table: "customers", action: "hard_delete", where: "id = :subject_id" }] };
       const naive = await mcpTool(harnessUrl, harnessToken, "rehearse_deletion", { plan: naivePlan });
-      liveData = { subjectId: sid, displayGov, total, tablesWithData, naive, tables };
+      if (typeof naive?.would_be_illegal !== "boolean") throw new Error("rehearse_deletion returned an invalid payload");
+      liveData = { subjectId: sid, displayGov, total, tablesWithData, naive, tables, links: fks.foreign_keys.length, safePlan: naivePlan };
+      run.liveData = liveData;
       liveSuccess = true;
     } catch (e) {
-      // fall back to demo
       liveSuccess = false;
     }
   }
   if (!liveSuccess) {
     setStep("search", "complete");
-    setRunState("error");
-    impactState.textContent = "Harness unreachable";
-    impactCopy.textContent = "Live backend needed. Open connections and set MCP URL and token.";
-    const errEl = document.getElementById("harness-error");
-    const errDetail = document.getElementById("harness-error-detail");
-    if (errDetail) errDetail.textContent = "Set MCP URL and token, then retry.";
-    if (errEl) errEl.hidden = false;
-    appendAudit("Error", "Harness unreachable. No synthetic data. Set MCP_URL.");
-    missionStatus.textContent = "Harness unreachable";
-    composerStatus.innerHTML = '<span class="status-dot" aria-hidden="true"></span>Live backend needed. Open connections.';
-    pauseButton.disabled = true;
-    scrollConversation(errEl || document.getElementById("harness-error"));
+    showServiceError();
+    appendAudit("Error", "The service is unavailable. Please try again.");
     return;
   }
 
   if (!(await waitFor(620, generation))) return;
-  impactState.textContent = "Rewriting";
-  if (liveSuccess && liveData?.naive) {
-    const v = liveData.naive.retention_violations?.length || 2;
-    const r = liveData.naive.summary?.total_rows_removed || 33;
-    impactCopy.textContent = `Direct delete would break ${v} groups the law keeps (${r} rows). I write a safe plan.`;
-    appendAudit("Safety check", `Direct delete would break ${v} groups. I write a safe plan.`);
-  } else {
-    impactCopy.textContent = "Direct delete would break records the law keeps. I write a safe plan.";
-    appendAudit("Safety check", "Direct delete would break required records. I write a safe plan.");
+  impactState.textContent = "Preparing changes";
+  if (liveData?.naive) {
+    const v = liveData.naive.retention_violations?.length || 0;
+    const r = liveData.naive.summary?.total_rows_removed || 0;
+    impactCopy.textContent = `Some records need a different treatment before they can be removed. I'll prepare those changes for review.`;
+    appendAudit("Review", `Found ${v} groups that need a different treatment across ${r} records.`);
   }
 
   if (!(await waitFor(680, generation))) return;
-  // Try live safe plan rehearse if live
-  if (liveSuccess) {
-    try {
-      const harnessUrl2 = resolveMcpUrl();
-      const harnessToken2 = resolveMcpToken();
-      const sid = liveData.subjectId;
-      const safePlan = {
-        subject_id: sid,
-        steps: [
-          { table: "order_items", action: "anonymise", where: "order_id IN (SELECT id FROM orders WHERE customer_id = :subject_id)", set: { sku: "[REDACTED]" } },
-          { table: "orders", action: "anonymise", where: "customer_id = :subject_id", set: { billing_email: "[REDACTED]", customer_id: null } },
-          { table: "customers", action: "hard_delete", where: "id = :subject_id" },
-        ],
-      };
-      const safe = await mcpTool(harnessUrl2, harnessToken2, "rehearse_deletion", { plan: safePlan });
-      const anon = safe?.anonymised_rows_per_table ? Object.values(safe.anonymised_rows_per_table).reduce((a,b)=>a+b,0) : 24;
-      const conflicts = safe?.retention_violations?.length || 0;
-      impactState.textContent = conflicts === 0 ? "0 conflicts" : `${conflicts} conflicts`;
-      impactCopy.textContent = `Safe plan: remove ${safe?.rows_deleted_per_table?.customers || 1}, clear ${anon}, cut 9 links. 5.6 per name. 0 conflicts.`;
-      appendAudit("Safety check", `Safe plan passed with ${conflicts} conflicts.`);
-      liveData.safe = safe;
-    } catch {
-      impactState.textContent = "0 conflicts";
-      impactCopy.textContent = "Safe plan: remove 9, clear 24, cut 9 links. 5.6 per name. 0 conflicts.";
-      appendAudit("Safety check", "Safe plan passed with 0 conflicts");
+  try {
+    const safePlan = {
+      subject_id: liveData.subjectId,
+      steps: [
+        { table: "order_items", action: "anonymise", where: "order_id IN (SELECT id FROM orders WHERE customer_id = :subject_id)", set: { sku: "[REDACTED]" } },
+        { table: "orders", action: "anonymise", where: "customer_id = :subject_id", set: { billing_email: "[REDACTED]", customer_id: null } },
+        { table: "customers", action: "hard_delete", where: "id = :subject_id" },
+      ],
+    };
+    const safe = await mcpTool(harnessUrl, harnessToken, "rehearse_deletion", { plan: safePlan });
+    if (!Array.isArray(safe?.retention_violations) || !safe?.rows_deleted_per_table || !safe?.anonymised_rows_per_table) {
+      throw new Error("rehearse_deletion returned an invalid safe-plan payload");
     }
-  } else {
-    impactState.textContent = "0 conflicts";
-    impactCopy.textContent = "Safe plan: remove 9, clear 24, cut 9 links. 5.6 per name. 0 conflicts.";
-    appendAudit("Safety check", "Safe plan passed with 0 conflicts");
+    const anon = Object.values(safe.anonymised_rows_per_table).reduce((sum, value) => sum + Number(value || 0), 0);
+    const conflicts = safe.retention_violations.length;
+    if (conflicts > 0) throw new Error(`Safe plan still has ${conflicts} retention conflicts`);
+    impactState.textContent = "Ready for review";
+    impactCopy.textContent = `Changes ready: remove ${safe.rows_deleted_per_table.customers || 0}, update ${anon}, and review ${liveData.links} related records.`;
+    setImpactValues([liveData.total, safe.rows_deleted_per_table.customers || 0, anon, liveData.links]);
+    const safetyResult = $(".safety-result", detailsDrawer);
+    if (safetyResult) safetyResult.hidden = false;
+    appendAudit("Review", "Changes are ready for your approval");
+    liveData.safe = safe;
+    liveData.safePlan = safePlan;
+    run.liveData = liveData;
+  } catch (error) {
+    console.error(error);
+    showServiceError("I couldn't prepare your request. Please try again.");
+    appendAudit("Error", "I couldn't prepare your request. Please try again.");
+    return;
   }
   setStep("check", "complete");
 
   if (!standingAuthorization.erase) {
     setRunState("question");
-    appendAgentMessage("Check passed. Say delete and I clear what the law allows.");
+    appendAgentMessage("Your review is ready. Approve the changes you'd like me to make.");
     return;
   }
 
   setStep("act", "active");
   setRunState("executing");
-  appendAudit("Ready", liveSuccess ? `Delete ready for ${liveData.displayGov}` : "Delete ready");
+  appendAudit("Ready", "Your changes are ready for approval");
 
   if (!(await waitFor(650, generation))) return;
   setRunState("monitoring");
-  appendAudit("Checked", liveSuccess ? `${liveData.total || 42} records accounted for. Rollback saved.` : "42 records accounted for. Rollback saved.");
+  appendAudit("Review", `${liveData.total || 0} records accounted for. Your review is saved.`);
 
   if (!(await waitFor(520, generation))) return;
   setStep("act", "complete");
@@ -1407,7 +1441,7 @@ async function continueAutonomousRun() {
   completionMessage.hidden = false;
   pauseButton.disabled = true;
   stopTimer();
-  appendAudit("Done", liveSuccess ? `Plan done with 0 conflicts for ${liveData.displayGov}. Say delete to run.` : "Plan done with 0 conflicts. Say delete to run.");
+  appendAudit("Ready", "Your request is ready for approval");
   scrollConversation(completionMessage);
 }
 
@@ -1436,8 +1470,8 @@ function togglePause() {
   if (run.state === "complete" || run.state === "error") return;
   run.paused = !run.paused;
   body.classList.toggle("is-paused", run.paused);
-  agentAscii.setPaused(run.paused);
-  sidebarAscii.setPaused(run.paused);
+  agentPresence.setPaused(run.paused);
+  sidebarPresence.setPaused(run.paused);
   if (run.paused) {
     pauseButton.innerHTML =
       '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 5 8 5-8 5Z" /></svg><span>Resume</span>';
@@ -1450,38 +1484,8 @@ function togglePause() {
       '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5v10M13 5v10" /></svg><span>Pause</span>';
     missionStatus.textContent = stateCopy[run.state].mission;
     composerStatus.innerHTML =
-      '<span class="status-dot is-ready" aria-hidden="true"></span>I’ll keep going inside your scope.';
+      "<span class=\"status-dot is-ready\" aria-hidden=\"true\"></span>I'll keep working on your request.";
     runAnnouncement.textContent = "Resumed";
-  }
-}
-
-function loadMission(key) {
-  const preset = missionPresets[key];
-  if (!preset) return;
-  resetMission({ keepPrompt: true });
-  missionTitle.textContent = preset.title;
-  userMissionCopy.textContent = preset.prompt;
-  setView("agent");
-  startTimer();
-
-  if (preset.mode === "question") {
-    setStep("understand", "complete");
-    setStep("search", "active");
-    setSubagentState("identity", "done");
-    subagentList.hidden = false;
-    askIdentityQuestion();
-  } else {
-    ["understand", "search", "check", "act"].forEach((step) => setStep(step, "complete"));
-    subagentList.hidden = false;
-    subagentPlan.forEach((agent) => setSubagentState(agent.key, "done"));
-    renderEvidence(7, true);
-    impactState.textContent = "0 conflicts";
-    impactCopy.textContent = "Safe plan: remove 9, clear 24, cut 9 links. 5.6 per name. 0 conflicts.";
-    setRunState("complete");
-    completionMessage.hidden = false;
-    pauseButton.disabled = true;
-    runTimer.textContent = "02:14";
-    stopTimer();
   }
 }
 
@@ -1501,7 +1505,7 @@ async function testConnector() {
   if (!rawUrl) return;
   testButton.disabled = true;
   testButton.textContent = "Testing…";
-  connectorResult.innerHTML = '<span aria-hidden="true"></span>Checking the harness health endpoint.';
+  connectorResult.innerHTML = '<span aria-hidden="true"></span>Checking connection.';
 
   let healthUrl;
   try {
@@ -1519,11 +1523,12 @@ async function testConnector() {
   try {
     const response = await fetch(healthUrl, { signal: controller.signal });
     if (!response.ok) throw new Error("unhealthy");
+    persistConnectorConfig();
     connectorResult.innerHTML =
-      '<span aria-hidden="true"></span>Connected. The harness is healthy and ready for protected requests.';
+      '<span aria-hidden="true"></span>Connected and ready.';
   } catch {
     connectorResult.innerHTML =
-      '<span aria-hidden="true"></span>Couldn’t reach that address. This screen will keep using the local demo fixture.';
+      "<span aria-hidden=\"true\"></span>Couldn't reach that address. Try again when the service is available.";
   } finally {
     window.clearTimeout(timeout);
     testButton.disabled = false;
@@ -1531,22 +1536,38 @@ async function testConnector() {
   }
 }
 
-function handleDeleteAction() {
+async function handleDeleteAction({ recordMessage = true } = {}) {
   if (run.state !== "complete") return;
+  const liveData = run.liveData;
+  if (!liveData?.safePlan) {
+    appendAgentMessage("I can't make changes until your request is ready for approval.");
+    return;
+  }
   const btn = $("#delete-action");
   if (btn) {
     btn.textContent = "Clearing…";
     btn.disabled = true;
   }
-  appendUserMessage("Delete what you can.");
-  appendAgentMessage("On it. I clear what the law allows and keep what it needs with fields cleared. 5.6 traces per name checked.");
-  appendAudit("Delete", "You said delete. I clear what the law allows. 5.6 per name.");
-  impactCopy.textContent = "Done. I removed 9, cleared 24, cut 9 links. 5.6 per name. Rollback saved.";
-  if (btn) {
-    window.setTimeout(() => {
-      btn.textContent = "Done";
-      appendAgentMessage("Done. 42 records checked. I kept what the law needs with personal fields cleared.");
-    }, 700);
+  if (recordMessage) appendUserMessage("Delete what you can.");
+    appendAgentMessage("I'll remove only the information you approved.");
+  appendAudit("Approved", "You approved these changes.");
+  try {
+    const result = await mcpTool(resolveMcpUrl(), resolveMcpToken(), "execute_deletion", { plan: liveData.safePlan });
+    if (result?.executed !== true) throw new Error("The service could not complete the request");
+    impactCopy.textContent = "Done. Your approved changes are complete.";
+    appendAudit("Done", "Your approved changes are complete.");
+    if (btn) btn.textContent = "Done";
+    appendAgentMessage("Done. Your approved changes are complete.");
+  } catch (error) {
+    console.error(error);
+    setRunState("error");
+    clearUnavailableDetails();
+    appendAudit("Error", "I couldn't complete your request. Please try again.");
+    appendAgentMessage("I stopped before changing anything because the service could not complete your request.");
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Try again";
+    }
   }
 }
 
@@ -1566,7 +1587,7 @@ agentForm.addEventListener("submit", (event) => {
     appendUserMessage(message);
     agentPrompt.value = "";
     resizeTextarea(agentPrompt);
-    handleDeleteAction();
+    handleDeleteAction({ recordMessage: false });
     return;
   }
   appendUserMessage(message);
@@ -1574,10 +1595,14 @@ agentForm.addEventListener("submit", (event) => {
   resizeTextarea(agentPrompt);
 
   if (run.waitingForLocation || run.state === "question") {
+    const pendingQuestion = run.pendingQuestion || "name";
     run.waitingForLocation = false;
+    run.pendingQuestion = null;
     identityQuestion.hidden = true;
-    appendAgentMessage("Thanks. I use that location to keep the search on you.");
-    continueAutonomousRun();
+    appendAgentMessage(pendingQuestion === "location"
+      ? "I'll use that location to narrow the match, then ask for your full name."
+      : "I'll use that name to keep the search focused on you.");
+    continueAutonomousRun(pendingQuestion === "name" ? message : "");
     return;
   }
 
@@ -1590,10 +1615,6 @@ $$("[data-home-panel-target]").forEach((button) => {
 });
 
 $$("[data-go-home]").forEach((button) => button.addEventListener("click", goHome));
-$$("[data-open-mission]").forEach((button) => {
-  button.addEventListener("click", () => loadMission(button.dataset.openMission));
-});
-
 $$("[data-open-details]").forEach((button) => button.addEventListener("click", () => openDetails()));
 $("#details-toggle").addEventListener("click", () => openDetails());
 detailsClose.addEventListener("click", closeDetails);
@@ -1608,28 +1629,26 @@ $("#new-request").addEventListener("click", () => {
 });
 
 pauseButton.addEventListener("click", togglePause);
-const harnessRetry = $("#harness-retry");
-if (harnessRetry) harnessRetry.addEventListener("click", () => {
-  const errEl = $("#harness-error");
+const serviceRetry = $("#service-retry");
+if (serviceRetry) serviceRetry.addEventListener("click", () => {
+  const errEl = $("#service-error");
   if (errEl) errEl.hidden = true;
   const lastPrompt = userMissionCopy.textContent?.trim() || homePrompt.value?.trim();
   if (lastPrompt) startMission(lastPrompt);
 });
-const harnessOpen = $("#harness-open-connections");
-if (harnessOpen) harnessOpen.addEventListener("click", () => connectorDialog.showModal());
-
 $$("[data-identity-answer]").forEach((button) => {
   button.addEventListener("click", () => {
     const answer = button.dataset.identityAnswer;
     if (answer === "yes") {
-      appendUserMessage("Yes, Nashville is me.");
+      appendUserMessage("Yes, that's me.");
       continueAutonomousRun();
     } else {
-      appendUserMessage("No, that isn’t me.");
+      appendUserMessage("No, that isn't me.");
       run.waitingForLocation = true;
+      run.pendingQuestion = "location";
       identityQuestion.hidden = true;
       setRunState("question");
-      appendAgentMessage("Thanks for catching that. What city or state should I use instead?");
+      appendAgentMessage("What city or state should I use instead?");
       agentPrompt.placeholder = "Enter the city or state that belongs to you";
       agentPrompt.focus();
     }
@@ -1650,7 +1669,8 @@ $("#connections-button").addEventListener("click", () => {
   closeSidebar();
   connectorDialog.showModal();
 });
-$("#connector-test").addEventListener("click", testConnector);
+const connectorTestButton = $("#connector-test");
+if (connectorTestButton) connectorTestButton.addEventListener("click", testConnector);
 
 $("#permissions-button").addEventListener("click", () => {
   closeSidebar();
@@ -1677,6 +1697,7 @@ $("#identity-form").addEventListener("submit", (event) => {
 $$("[data-scope]").forEach((checkbox) => {
   checkbox.addEventListener("change", () => {
     standingAuthorization[checkbox.dataset.scope] = checkbox.checked;
+    updatePermissionsSummary();
     appendAudit(
       "Permission",
       checkbox.dataset.scope + " permission " + (checkbox.checked ? "enabled" : "disabled"),
@@ -1689,15 +1710,31 @@ $$("[data-scope]").forEach((checkbox) => {
 });
 
 document.addEventListener("keydown", (event) => {
-  if (event.key !== "Escape") return;
-  if (body.classList.contains("is-details-open")) closeDetails();
-  else if (body.classList.contains("is-sidebar-open")) closeSidebar();
+  if (event.key === "Escape") {
+    if (body.classList.contains("is-details-open")) closeDetails();
+    else if (body.classList.contains("is-sidebar-open")) closeSidebar();
+    return;
+  }
+  if (event.key !== "Tab" || !body.classList.contains("is-details-open")) return;
+  const focusable = $$("button:not([disabled]), input:not([disabled]), summary, a[href], [tabindex]:not([tabindex='-1'])", detailsDrawer)
+    .filter((element) => element.offsetParent !== null);
+  if (focusable.length === 0) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 });
 
 const deleteActionBtn = $("#delete-action");
 if (deleteActionBtn) deleteActionBtn.addEventListener("click", handleDeleteAction);
 
-renderEvidence(2, false);
+renderRealEvidence([]);
+updatePermissionsSummary();
 setRunState("idle");
 setHomePanel("start", { skipView: true });
 setView(hasEnteredAgent() ? "home" : "landing");

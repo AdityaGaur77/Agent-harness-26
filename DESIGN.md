@@ -62,7 +62,7 @@ spacing:
   2xl: "80px"
 ---
 
-# Design System: Blast Radius — ASCII-First Synthetic Demo
+# Design system: Blast Radius, ASCII-first synthetic demo
 
 ## Overview
 
@@ -70,9 +70,9 @@ spacing:
 
 **Physical scene:** Dark room, terminal glow. You type what to find. The agent responds with living ASCII art that breathes, searches, thinks. No fluff. Pure function made visible.
 
-**Core idea:** Dark canvas. Cyan accent. ASCII everywhere — hero, sidebar, cards, progress, states. The ASCII *is* the interface. Synthetic demo data runs instantly. No backend needed. Pure frontend polish.
+**Core idea:** Dark canvas. Cyan accent. ASCII appears throughout the hero, sidebar, cards, progress, and state views. The ASCII *is* the interface. Synthetic demo data runs instantly. No backend needed. Pure frontend polish.
 
-**Variance / Motion / Density:** `8 / 7 / 6` — expressive, cinematic motion, rich density.
+**Variance / Motion / Density:** `8 / 7 / 6` for expressive, cinematic motion and rich density.
 
 ## Colors
 
@@ -130,7 +130,7 @@ Dark monochrome base. Cyan is the only chromatic signal. Used for ASCII, primary
 
 ## Space
 
-Generous macro whitespace. Sections at `120px` vertical. Cards breathe at `32px` padding. ASCII fields get massive space — they *are* the content.
+Generous macro whitespace. Sections use `120px` of vertical space. Cards have `32px` padding. ASCII fields get room because they *are* the content.
 
 ## Elevation
 
@@ -155,7 +155,7 @@ Dark sidebar with `1px border` right. Rail groups separated by ASCII dividers. S
 
 ### ASCII Hero (Home)
 
-Massive ASCII field `160×40` centered above prompt. Breathing orbital animation. State label `[ ready ]` at center. Sub-label types out on load. No card, no border — pure ASCII on canvas.
+Massive ASCII field `160×40` centered above the prompt. A breathing orbital animation carries the state label `[ ready ]` at center. The sub-label types on load. No card or border, just ASCII on canvas.
 
 ### ASCII Agent (Mission)
 
@@ -244,6 +244,6 @@ Direct. Technical. No fluff. One idea per sentence. "You" addresses the reader. 
 - ASCII renders at 12 FPS with spring physics on all target states.
 - Cyan accent <15% surface area.
 - One font family for display/UI, one for mono/ASCII.
-- All radii 16px/10px/pill — no drift.
+- All radii use 16px, 10px, or pill values without drift.
 - Demo completes in <30s with zero network calls.
 - Keyboard accessible, reduced motion respected.
