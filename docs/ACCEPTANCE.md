@@ -158,7 +158,7 @@ resolved.
 |---|---|---|---|
 | [#1](https://github.com/AdityaGaur77/Agent-harness-26/pull/1) | MCP server, approval gate, and agent provisioning | Closed (superseded, not merged) | `<<QODO_PR1_STATUS>>` |
 | [#6](https://github.com/AdityaGaur77/Agent-harness-26/pull/6) | Add synthetic demo database baseline | Open | `<<QODO_PR6_STATUS>>` |
-| `<<AMELIA_PR_NUMBER>>` | Skill, acceptance script, README, submission docs (this branch, consolidated from closed #8-13) | Open | `<<QODO_AMELIA_PR_STATUS>>` |
+| [#14](https://github.com/AdityaGaur77/Agent-harness-26/pull/14) | Skill, acceptance script, README, submission docs (consolidated from closed #8-13) | Open | `<<QODO_PR14_STATUS>>` |
 
 Update this table as PRs open, merge, or close. Before submission, every row
 for a merged PR must show either "no High findings" or a fixed/dismissed
