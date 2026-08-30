@@ -3,6 +3,7 @@ const RATE_LIMIT = 20;
 const MAX_BODY_BYTES = 16 * 1024;
 const MAX_QUERY_LENGTH = 500;
 const rateBuckets = new Map();
+const RATE_LIMIT_SCRIPT = "local count = redis.call('INCR', KEYS[1]); if count == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]); end; return count;";
 
 function header(request, name) {
   const value = request.headers?.[name] ?? request.headers?.[name.toLowerCase()];
@@ -53,10 +54,7 @@ async function consumeRateLimit(request) {
           Authorization: `Bearer ${config.token}`,
           "content-type": "application/json",
         },
-        body: JSON.stringify([
-          ["INCR", key],
-          ["EXPIRE", key, Math.ceil(RATE_WINDOW_MS / 1000)],
-        ]),
+        body: JSON.stringify([["EVAL", RATE_LIMIT_SCRIPT, 1, key, Math.ceil(RATE_WINDOW_MS / 1000)]]),
       });
       if (!result.ok) throw new Error(`Upstash rate limit failed (${result.status})`);
       const payload = await result.json();

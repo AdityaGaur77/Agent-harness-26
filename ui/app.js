@@ -95,6 +95,7 @@ const RUN_STATES = [
   "monitoring",
   "complete",
   "error",
+  "indeterminate",
 ];
 
 const stateCopy = {
@@ -160,6 +161,13 @@ const stateCopy = {
     mission: "Paused with care",
     progress: 100,
     aria: "Nothing changed",
+  },
+  indeterminate: {
+    title: "Outcome needs confirmation",
+    detail: "The response was lost after dispatch.",
+    mission: "Outcome needs confirmation",
+    progress: 100,
+    aria: "The final outcome needs confirmation",
   },
 };
 
@@ -432,6 +440,7 @@ const run = {
   previewQuestionResolver: null,
   previewApproved: false,
   liveReviewReady: false,
+  executionIndeterminate: false,
 };
 
 class PresenceAgent {
@@ -609,6 +618,7 @@ class PresenceAgent {
       monitoring: "[ check ]",
       complete: "[ done ]",
       error: "[ paused ]",
+      indeterminate: "[ review ]",
     };
     const label = labels[this.state];
     const row = Math.round(centerY);
@@ -1068,6 +1078,9 @@ function setRunState(nextState) {
   } else if (nextState === "complete") {
     composerStatus.innerHTML =
       '<span class="status-check" aria-hidden="true">✓</span>Review the findings before approving.';
+  } else if (nextState === "indeterminate") {
+    composerStatus.innerHTML =
+      '<span class="status-dot is-waiting" aria-hidden="true"></span>Outcome needs confirmation. Start a fresh request to verify.';
   } else {
     composerStatus.innerHTML =
       '<span class="status-dot is-ready" aria-hidden="true"></span>The request will continue.';
@@ -1329,6 +1342,7 @@ function resetMission(options = {}) {
   run.previewQuestionResolver = null;
   run.previewApproved = false;
   run.liveReviewReady = false;
+  run.executionIndeterminate = false;
   body.classList.remove("is-paused", "is-complete");
   agentPresence.setPaused(false);
   sidebarPresence.setPaused(false);
@@ -1989,15 +2003,18 @@ async function handleDeleteAction({ recordMessage = true } = {}) {
   setRunState("executing");
   appendAgentMessage("Only the approved information will be removed.");
   appendAudit("Approved", "Changes approved.");
+  let executionDispatched = false;
+  let executionConnector = null;
   try {
     if (!standingAuthorization.erase) throw new Error("approval_permission_revoked");
     if (!liveData.safe?.execution_token) throw new Error("The approved rehearsal has expired. Rehearse the plan again.");
-    const connector = liveData.connector;
-    if (!connector?.url || !connector?.token) throw new Error("The approved connector is missing. Rehearse the plan again.");
-    if (resolveMcpUrl() !== connector.url || resolveMcpToken() !== connector.token) {
+    executionConnector = liveData.connector;
+    if (!executionConnector?.url || !executionConnector?.token) throw new Error("The approved connector is missing. Rehearse the plan again.");
+    if (resolveMcpUrl() !== executionConnector.url || resolveMcpToken() !== executionConnector.token) {
       throw new Error("approval_connector_changed");
     }
-    const result = await mcpTool(connector.url, connector.token, "execute_deletion", {
+    executionDispatched = true;
+    const result = await mcpTool(executionConnector.url, executionConnector.token, "execute_deletion", {
       plan: liveData.safePlan,
       execution_token: liveData.safe.execution_token,
     });
@@ -2011,6 +2028,43 @@ async function handleDeleteAction({ recordMessage = true } = {}) {
     if (btn) btn.textContent = "Done";
     appendAgentMessage("Done. Your approved changes are complete.");
   } catch (error) {
+    if (executionDispatched) {
+      // The server redeems the token before committing. A lost response is
+      // therefore indeterminate, not proof that nothing changed. Reconcile
+      // once with a read-only check, then require a fresh request rather than
+      // offering to replay a single-use token.
+      run.executionIndeterminate = true;
+      run.liveReviewReady = false;
+      setRunState("indeterminate");
+      completionMessage.hidden = false;
+      pauseButton.disabled = true;
+      stopTimer();
+      if (completionTitle) completionTitle.textContent = "Outcome needs confirmation.";
+      if (completionCopy) completionCopy.textContent = "The service response was lost after the approved change was dispatched. A read-only check will be attempted; do not retry this run.";
+      if (completionNote) completionNote.textContent = "Start a fresh request to verify the final state.";
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Outcome needs review";
+      }
+      let reconciliation = null;
+      if (executionConnector && standingAuthorization.discover) {
+        try {
+          reconciliation = await mcpTool(executionConnector.url, executionConnector.token, "find_subject_data", { subject_id: liveData.subjectId });
+          liveData.reconciliation = reconciliation;
+        } catch (reconciliationError) {
+          console.warn("Execution reconciliation unavailable", reconciliationError);
+        }
+      }
+      const checked = typeof reconciliation?.total_rows_referencing_subject === "number";
+      appendAudit("Needs you", checked
+        ? `Execution response was lost. Read-only reconciliation checked ${reconciliation.total_rows_referencing_subject} connected rows.`
+        : "Execution response was lost. Read-only reconciliation was unavailable.");
+      appendAgentMessage(checked
+        ? "The service response was lost after execution began. A read-only reconciliation ran, but this run cannot be retried safely. Start a fresh request to verify the final state."
+        : "The service response was lost after execution began. The final outcome is unknown, so this run cannot be retried safely. Start a fresh request to verify the final state.");
+      scrollConversation(completionMessage);
+      return;
+    }
     setRunState("error");
     clearUnavailableDetails();
     if (error instanceof Error && error.message === "approval_connector_changed") {
