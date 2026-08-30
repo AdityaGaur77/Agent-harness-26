@@ -3,6 +3,7 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypt
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { endAllPools } from "./db.js";
+import { ensureDemoDatabase } from "./demo-bootstrap.js";
 import { registerDiscoverTools } from "./tools/discover.js";
 import { registerExecuteTool } from "./tools/execute.js";
 import { registerRehearseTool } from "./tools/rehearse.js";
@@ -168,6 +169,8 @@ app.delete("/mcp", async (req, res) => {
     if (!res.headersSent) res.status(500).json({ error: "internal_error" });
   }
 });
+
+await ensureDemoDatabase();
 
 const httpServer = app.listen(PORT, () => {
   console.log(`[mcp-subject-data] listening on :${PORT} (streamable HTTP at /mcp)`);
