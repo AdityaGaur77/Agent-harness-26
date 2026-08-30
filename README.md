@@ -65,6 +65,12 @@ npm run smoke                                  # third shell, same env vars
 - [x] UI (Aarav)
 - [ ] Live TrueForge integration test (connector registration, gate firing in a real session)
 
+## Qodo code review evidence
+
+- [PR #18](https://github.com/AdityaGaur77/Agent-harness-26/pull/18) is the feature branch into `Aditya`; Qodo was triggered from the PR with `/agentic_review`.
+- [Qodo's final review](https://github.com/AdityaGaur77/Agent-harness-26/pull/18#issuecomment-5466217977) reports 0 bugs, 0 rule violations, and 0 skill insights after the follow-up fixes. The review covered MCP auth/CORS and session recovery, unique identity resolution, discovery and approval permissions, execution-token binding, indeterminate execution outcomes, Exa proxy controls, and shared rate limiting.
+- The PR remains open for maintainer review. Merge still requires the live TrueForge + Daytona connector/session test described below.
+
 ## Deploy
 
 ### UI: Vercel (static)
