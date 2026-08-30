@@ -431,6 +431,7 @@ const run = {
   previewQuestionResolved: false,
   previewQuestionResolver: null,
   previewApproved: false,
+  liveReviewReady: false,
 };
 
 class PresenceAgent {
@@ -1327,6 +1328,7 @@ function resetMission(options = {}) {
   run.previewQuestionResolved = false;
   run.previewQuestionResolver = null;
   run.previewApproved = false;
+  run.liveReviewReady = false;
   body.classList.remove("is-paused", "is-complete");
   agentPresence.setPaused(false);
   sidebarPresence.setPaused(false);
@@ -1353,7 +1355,10 @@ function resetMission(options = {}) {
   if (identityQuestionCopy) identityQuestionCopy.textContent = "Two close matches were found. Choose one to keep checking.";
   if (identityAnswerYes) identityAnswerYes.textContent = "Yes, that's the right match";
   if (identityAnswerNo) identityAnswerNo.textContent = "No, that's not the right match";
-  if (deleteActionButton) deleteActionButton.textContent = "Delete what you can";
+  if (deleteActionButton) {
+    deleteActionButton.textContent = "Delete what you can";
+    deleteActionButton.disabled = false;
+  }
   if (completionNote) completionNote.textContent = "Nothing changes until you approve it.";
   if (completionTitle) completionTitle.textContent = "Your review is ready.";
   if (completionCopy) completionCopy.textContent = "The connected records were checked. Review the findings, then choose which information to remove.";
@@ -1714,7 +1719,17 @@ async function continueAutonomousRun(identityInput = "") {
     if (!ensureDiscoveryPermission()) return;
     const naive = await mcpTool(harnessUrl, harnessToken, "rehearse_deletion", { plan: naivePlan });
     if (typeof naive?.would_be_illegal !== "boolean") throw new Error("rehearse_deletion returned an invalid payload");
-    liveData = { subjectId: sid, displayGov, total, tablesWithData, naive, tables, links: fks.foreign_keys.length, safePlan: naivePlan };
+    liveData = {
+      subjectId: sid,
+      displayGov,
+      total,
+      tablesWithData,
+      naive,
+      tables,
+      links: fks.foreign_keys.length,
+      safePlan: naivePlan,
+      connector: { url: harnessUrl, token: harnessToken },
+    };
     run.liveData = liveData;
     liveSuccess = true;
   } catch (error) {
@@ -1774,24 +1789,31 @@ async function continueAutonomousRun(identityInput = "") {
     return;
   }
   setStep("check", "complete");
+  finishLiveReview();
+}
 
-  if (!standingAuthorization.erase) {
-    setRunState("question");
-    appendAgentMessage("The review is ready. Approve the changes to apply.");
-    return;
-  }
-
+function finishLiveReview() {
+  const firstReadyTransition = !run.liveReviewReady;
+  run.liveReviewReady = true;
   setStep("act", "waiting");
   setRunState("complete");
   completionMessage.hidden = false;
   pauseButton.disabled = true;
   stopTimer();
   if (completionTitle) completionTitle.textContent = "Ready for your review.";
-  if (completionCopy) completionCopy.textContent = "The proposed changes are ready. Review them, then approve what to apply.";
-  if (deleteActionButton) deleteActionButton.textContent = "Approve and apply";
+  if (completionCopy) {
+    completionCopy.textContent = standingAuthorization.erase
+      ? "The proposed changes are ready. Review them, then approve what to apply."
+      : "The proposed changes are ready. Re-enable approval permission before applying anything.";
+  }
+  if (deleteActionButton) deleteActionButton.textContent = standingAuthorization.erase ? "Approve and apply" : "Approval permission required";
   if (completionNote) completionNote.textContent = "Nothing changes until you approve it.";
-  appendAudit("Ready", "Approval is required before any change");
-  appendAgentMessage("Review complete. Nothing changes until the proposed changes are approved.");
+  if (firstReadyTransition) {
+    appendAudit("Ready", "Approval is required before any change");
+    appendAgentMessage(standingAuthorization.erase
+      ? "Review complete. Nothing changes until the proposed changes are approved."
+      : "Review complete. Re-enable Apply approved changes in Permissions before anything can be applied.");
+  }
   scrollConversation(completionMessage);
 }
 
@@ -1970,7 +1992,12 @@ async function handleDeleteAction({ recordMessage = true } = {}) {
   try {
     if (!standingAuthorization.erase) throw new Error("approval_permission_revoked");
     if (!liveData.safe?.execution_token) throw new Error("The approved rehearsal has expired. Rehearse the plan again.");
-    const result = await mcpTool(resolveMcpUrl(), resolveMcpToken(), "execute_deletion", {
+    const connector = liveData.connector;
+    if (!connector?.url || !connector?.token) throw new Error("The approved connector is missing. Rehearse the plan again.");
+    if (resolveMcpUrl() !== connector.url || resolveMcpToken() !== connector.token) {
+      throw new Error("approval_connector_changed");
+    }
+    const result = await mcpTool(connector.url, connector.token, "execute_deletion", {
       plan: liveData.safePlan,
       execution_token: liveData.safe.execution_token,
     });
@@ -1984,11 +2011,16 @@ async function handleDeleteAction({ recordMessage = true } = {}) {
     if (btn) btn.textContent = "Done";
     appendAgentMessage("Done. Your approved changes are complete.");
   } catch (error) {
-    console.error(error);
     setRunState("error");
     clearUnavailableDetails();
-    appendAudit("Error", "The request could not be completed. Please try again.");
-    appendAgentMessage("No changes were made because the service could not complete the request.");
+    if (error instanceof Error && error.message === "approval_connector_changed") {
+      appendAudit("Needs you", "The connected service changed after review");
+      appendAgentMessage("The connected service changed after this review. Reconnect it and run the request again before approving.");
+    } else {
+      console.error(error);
+      appendAudit("Error", "The request could not be completed. Please try again.");
+      appendAgentMessage("No changes were made because the service could not complete the request.");
+    }
     if (btn) {
       btn.disabled = false;
       btn.textContent = "Try again";
@@ -2162,31 +2194,10 @@ $$("[data-scope]").forEach((checkbox) => {
       appendAgentMessage("Search records is enabled again. Resuming the request.");
       continueAutonomousRun();
     }
-    if (checkbox.dataset.scope === "erase" && run.mode === "live" && run.liveData?.safePlan) {
+    if (checkbox.dataset.scope === "erase" && run.mode === "live" && run.liveReviewReady && run.liveData?.safePlan) {
       const actionButton = $("#delete-action");
-      if (checkbox.checked) {
-        if (run.state === "question") setRunState("complete");
-        setStep("act", "waiting");
-        if (actionButton) {
-          actionButton.disabled = false;
-          actionButton.textContent = "Approve and apply";
-        }
-        if (drawerApproveButton) {
-          drawerApproveButton.disabled = false;
-          drawerApproveButton.textContent = "Approve and apply";
-        }
-      } else if (run.state === "complete") {
-        setRunState("question");
-        setStep("act", "waiting");
-        if (actionButton) {
-          actionButton.disabled = false;
-          actionButton.textContent = "Approval permission required";
-        }
-        if (drawerApproveButton) {
-          drawerApproveButton.disabled = false;
-          drawerApproveButton.textContent = "Approval permission required";
-        }
-      }
+      finishLiveReview();
+      if (actionButton) actionButton.disabled = false;
     }
     appendAudit(
       "Permission",

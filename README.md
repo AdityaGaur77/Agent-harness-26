@@ -73,7 +73,7 @@ npm run smoke                                  # third shell, same env vars
 ```bash
 vercel --prod  # or import AdityaGaur77/Agent-harness-26 in Vercel dashboard
 ```
-The static UI auto-detects the Fly URL outside localhost. Enter the MCP URL and token in Connections before starting a live run; the token is kept for the current browser session. The connection check performs the health check, MCP initialize handshake, and `tools/list` approval-gate check. Set Vercel env `EXA_API_KEY` and `EXA_PROXY_TOKEN` (the MCP token may be reused) only if you want the optional server-side public-web lookup; the proxy also applies request limits and a per-client rate limit.
+The static UI auto-detects the Fly URL outside localhost. Enter the MCP URL and token in Connections before starting a live run; the token is kept for the current browser session. The connection check performs the health check, MCP initialize handshake, and `tools/list` approval-gate check. Set Vercel env `EXA_API_KEY`, `EXA_PROXY_TOKEN` (optional; the MCP token is also accepted), and the Upstash REST credentials `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` only if you want the optional server-side public-web lookup; production requests fail closed without the shared counter.
 
 ### Backend: Fly.io (MCP + Postgres)
 MCP server is in `packages/mcp-subject-data/`. `fly.toml` deploys it with healthcheck at `/healthz`.

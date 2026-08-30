@@ -21,7 +21,7 @@ function clientKey(request) {
   return (header(request, "x-forwarded-for").split(",")[0] || header(request, "x-real-ip") || "unknown").trim();
 }
 
-function consumeRateLimit(request) {
+function localRateLimit(request) {
   const now = Date.now();
   const key = clientKey(request);
   const previous = rateBuckets.get(key);
@@ -34,6 +34,47 @@ function consumeRateLimit(request) {
     if (now - stored.startedAt >= RATE_WINDOW_MS) rateBuckets.delete(storedKey);
   }
   return bucket.count <= RATE_LIMIT;
+}
+
+function durableRateLimitConfig() {
+  const url = process.env.UPSTASH_REDIS_REST_URL?.trim().replace(/\/$/, "");
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+  return url && token ? { url, token } : null;
+}
+
+async function consumeRateLimit(request) {
+  const config = durableRateLimitConfig();
+  if (config) {
+    const key = `blast-radius:exa:${clientKey(request)}`;
+    try {
+      const result = await fetch(`${config.url}/pipeline`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${config.token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify([
+          ["INCR", key],
+          ["EXPIRE", key, Math.ceil(RATE_WINDOW_MS / 1000)],
+        ]),
+      });
+      if (!result.ok) throw new Error(`Upstash rate limit failed (${result.status})`);
+      const payload = await result.json();
+      const count = Number(payload?.[0]?.result);
+      if (!Number.isFinite(count)) throw new Error("Upstash returned an invalid counter");
+      return { allowed: count <= RATE_LIMIT, durable: true };
+    } catch (error) {
+      console.error(error);
+      return { allowed: false, unavailable: true };
+    }
+  }
+
+  // Vercel instances do not share memory. Do not silently run an unbounded
+  // paid-key proxy in production when the shared counter is not configured.
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
+    return { allowed: false, unavailable: true };
+  }
+  return { allowed: localRateLimit(request), durable: false };
 }
 
 function validDomainList(value) {
@@ -60,13 +101,20 @@ export default async function handler(request, response) {
   }
   if (origin && origins.includes(origin)) response.setHeader("Access-Control-Allow-Origin", origin);
 
-  const expectedToken = process.env.EXA_PROXY_TOKEN?.trim() || process.env.MCP_AUTH_TOKEN?.trim();
+  const expectedTokens = [process.env.EXA_PROXY_TOKEN, process.env.MCP_AUTH_TOKEN]
+    .map((value) => value?.trim())
+    .filter(Boolean);
   const authorization = header(request, "authorization");
-  if (!expectedToken || authorization !== `Bearer ${expectedToken}`) {
+  if (!expectedTokens.length || !expectedTokens.some((token) => authorization === `Bearer ${token}`)) {
     response.status(401).json({ error: "unauthorized" });
     return;
   }
-  if (!consumeRateLimit(request)) {
+  const rate = await consumeRateLimit(request);
+  if (rate.unavailable) {
+    response.status(503).json({ error: "rate_limit_not_configured", results: [] });
+    return;
+  }
+  if (!rate.allowed) {
     response.setHeader("Retry-After", "300");
     response.status(429).json({ error: "rate_limited", results: [] });
     return;
