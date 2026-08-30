@@ -184,6 +184,11 @@ openai · anthropic · google-gemini · fireworks · zai · moonshot · alibaba 
 `MODEL_NAME` is always `provider/model`, fully qualified. A bare model name is
 rejected with a 422.
 
+Native Gemini models use their catalog names, for example
+`google-gemini/gemini-3-6-flash`; the provisioner accepts these names directly.
+The `:free` suffix rule applies to OpenAI-compatible/free-tier fallback models,
+not to native Google model IDs.
+
 ### OpenAI-compatible endpoints (OpenRouter and similar)
 
 Add a **custom** provider:

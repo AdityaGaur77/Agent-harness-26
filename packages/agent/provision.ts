@@ -31,16 +31,23 @@ function isFreeModel(model: string): boolean {
   return /:free$/.test(id);
 }
 
+function isAllowedModel(model: string): boolean {
+  // Native Gemini models are quota-controlled by Google and do not use the
+  // OpenRouter-style `:free` suffix. Keep the free-only guard for every other
+  // provider while allowing the provider configured in TrueForge's catalog.
+  return model.startsWith("google-gemini/") || isFreeModel(model);
+}
+
 async function main(): Promise<void> {
   const baseUrl = process.env.TRUEFORGE_BASE_URL?.trim() || "http://localhost:8791";
   const token = requiredEnv("TRUEFORGE_TOKEN");
   let modelName = requiredEnv("MODEL_NAME");
-  if (!isFreeModel(modelName)) {
-    throw new Error(`Only free models (:free suffix) allowed. Got MODEL_NAME=${modelName}`);
+  if (!isAllowedModel(modelName)) {
+    throw new Error(`Only native google-gemini models or free models (:free suffix) allowed. Got MODEL_NAME=${modelName}`);
   }
   // validate fallbacks too
   for (const m of parseKeyList(process.env.MODEL_NAMES)) {
-    if (!isFreeModel(m)) throw new Error(`Only free models allowed in MODEL_NAMES, got ${m}`);
+    if (!isAllowedModel(m)) throw new Error(`Only native google-gemini models or free models allowed in MODEL_NAMES, got ${m}`);
   }
   const mcpServerUrl = process.env.MCP_SERVER_URL?.trim() || "http://mcp-server:8080/mcp";
   const mcpAuthToken = requiredEnv("MCP_AUTH_TOKEN");

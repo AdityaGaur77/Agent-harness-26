@@ -49,7 +49,7 @@ Compose MCP server at `MCP_URL` must therefore remain pointed at `blast_main`.
 ```bash
 cd packages/agent && npm install
 TRUEFORGE_BASE_URL=http://localhost:8791 TRUEFORGE_TOKEN=... \
-MODEL_NAME=openai/gpt-4o-mini MCP_AUTH_TOKEN=dev-token npm run provision
+MODEL_NAME=google-gemini/gemini-3-6-flash MCP_AUTH_TOKEN=dev-token npm run provision
 ```
 
 Safe to re-run: connector registration uses `createOrUpdate`; if the agent name
