@@ -196,9 +196,11 @@ dismissed with a recorded reason before submission.
 
 The UI integration is carried on [PR #18](https://github.com/AdityaGaur77/Agent-harness-26/pull/18),
 which was opened from `codex/aarav-ui-live-harness` into `Aditya` and reviewed
-by Qodo with `/agentic_review`. Its latest review reports zero bugs, rule
-violations, and skill insights; it remains open until the live TrueForge and
-Daytona session is demonstrated and the maintainer merges it.
+by Qodo with `/agentic_review`. The latest pass found one Medium documentation
+finding because the acceptance sweep omitted this PR; the row is included in
+the follow-up commit. The earlier implementation pass reported zero bugs,
+rule violations, and skill insights. It remains open until the live TrueForge
+and Daytona session is demonstrated and the maintainer merges it.
 
 ## AI assistance
 
