@@ -9,6 +9,7 @@
   },
   "scripts": {
     "provision": "tsx provision.ts",
+    "verify:demo": "tsx verify-demo.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

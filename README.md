@@ -7,6 +7,9 @@ to keep seven years of invoice records for the same customer.
 
 ## What you will see in the demo
 
+The recorded Customer 4471 operator flow, expected measurements, approval
+paths, and stop conditions are in [`docs/DEMO-4471.md`](docs/DEMO-4471.md).
+
 - The agent is asked to erase one named customer. It fans discovery out
   across four data domains in parallel (core identity, uploads, billing,
   audit), each search returning a table-and-count summary, never row
