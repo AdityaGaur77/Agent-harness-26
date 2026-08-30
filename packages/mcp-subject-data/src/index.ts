@@ -50,17 +50,34 @@ function buildServer(): McpServer {
 const app = express();
 app.disable("x-powered-by");
 
-// CORS for browser-based UI (localhost:4173 -> localhost:8080)
+function isLocalUiOrigin(origin: string): boolean {
+  try {
+    const hostname = new URL(origin).hostname;
+    return hostname === "localhost" || hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
+function allowsUiOrigin(origin: string | undefined): boolean {
+  return Boolean(origin && (isLocalUiOrigin(origin) || (UI_ORIGIN && origin === UI_ORIGIN)));
+}
+
+// CORS must run before route handlers so both /healthz and /mcp receive the
+// configured production origin, and MCP preflights are not short-circuited by
+// a route-specific middleware later in the stack.
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin && (origin.includes("localhost") || origin.includes("127.0.0.1"))) {
+  const allowed = allowsUiOrigin(origin);
+  if (allowed && origin) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, mcp-session-id, Accept");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, MCP-Session-Id, Accept");
     res.setHeader("Access-Control-Expose-Headers", "mcp-session-id");
+    res.setHeader("Vary", "Origin");
   }
   if (req.method === "OPTIONS") {
-    res.sendStatus(204);
+    res.sendStatus(origin && !allowed ? 403 : 204);
     return;
   }
   next();
@@ -68,22 +85,6 @@ app.use((req, res, next) => {
 
 app.get("/healthz", (_req, res) => {
   res.json({ status: "ok", service: "mcp-subject-data", time: new Date().toISOString() });
-});
-
-app.use("/mcp", (req, res, next) => {
-  const origin = req.headers.origin;
-  const allowed = Boolean(origin && UI_ORIGIN && origin === UI_ORIGIN);
-  if (allowed) {
-    res.setHeader("Access-Control-Allow-Origin", origin!);
-    res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, MCP-Session-Id");
-    res.setHeader("Access-Control-Allow-Methods", "POST, GET, DELETE, OPTIONS");
-    res.setHeader("Vary", "Origin");
-  }
-  if (req.method === "OPTIONS") {
-    res.sendStatus(allowed ? 204 : 403);
-    return;
-  }
-  next();
 });
 
 app.use("/mcp", express.json({ limit: "4mb" }));

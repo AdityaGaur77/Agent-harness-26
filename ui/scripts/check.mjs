@@ -3,12 +3,13 @@ import { readFile } from "node:fs/promises";
 const root = new URL("..", import.meta.url);
 const read = (file) => readFile(new URL(file, root), "utf8");
 const readBinary = (file) => readFile(new URL(file, root));
-const [html, css, js, pkg, horseFrames] = await Promise.all([
+const [html, css, js, pkg, horseFrames, exaApi] = await Promise.all([
   read("index.html"),
   read("styles.css"),
   read("app.js"),
   read("package.json"),
   Promise.all(Array.from({ length: 11 }, (_, index) => readBinary(`assets/horse/frame-${String(index + 1).padStart(2, "0")}.webp`))),
+  read("../api/exa-search.js"),
 ]);
 
 const all = `${html}\n${css}\n${js}`;
@@ -98,10 +99,14 @@ const assertions = [
   ["focus-visible states", css.includes(":focus-visible")],
   ["no runtime dependencies", !JSON.parse(pkg).dependencies && !JSON.parse(pkg).devDependencies],
   ["web search credential stays server-side", !js.includes("EXA_API_KEY") && js.includes("/api/exa-search")],
+  ["web search proxy is bounded", exaApi.includes("EXA_PROXY_TOKEN") && exaApi.includes("RATE_LIMIT") && exaApi.includes("MAX_BODY_BYTES") && exaApi.includes("authorization") && exaApi.includes("rate_limited")],
   ["MCP errors fail closed", js.includes("if (!res.ok) throw") && js.includes("r?.result?.isError")],
   ["MCP session handshake is explicit", js.includes('method !== "initialize"') && js.includes('"notifications/initialized"') && js.includes("mcp-session-id") && js.includes("blast_mcp_initialized")],
   ["numeric subject requests stay scoped", js.includes("customer|subject|record|profile|id") && js.includes("displayGovName") && js.includes("Customer ${resolved.id}") && js.includes("subjectId ?")],
-  ["deletion calls the destructive tool", js.includes('"execute_deletion"') && js.includes("run.liveData")],
+  ["deletion calls the destructive tool", js.includes('"execute_deletion"') && js.includes("run.liveData") && js.includes("execution_token")],
+  ["approval permission is enforced at click time", js.includes("standingAuthorization.erase") && js.includes("approval_permission_revoked") && js.includes("Approval permission required")],
+  ["ambiguous names fail closed", js.includes("matches.length !== 1") && js.includes("identity_match_required") && js.includes("normalizePrompt(match.full_name)")],
+  ["discovery permission is enforced", js.includes("ensureDiscoveryPermission") && js.includes('pendingQuestion = "discovery"') && js.includes("Search records is disabled")],
   ["unresolved identity never gets a default subject", !js.includes('|| "Jane Q Synthetic"') && !js.includes("|| 4471")],
   ["customer activity is not prefilled", !html.includes("data-open-mission") && !js.includes("missionPresets") && html.includes("No recent requests")],
   ["inert reveal runtime removed", !html.includes('class="home-intro reveal"') && !html.includes("IntersectionObserver") && !css.includes(".reveal")],

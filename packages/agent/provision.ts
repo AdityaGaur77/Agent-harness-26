@@ -7,18 +7,6 @@ function parseKeyList(raw?: string): string[] {
   return raw.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
-function getRotatingKeys(...names: string[]): string[] {
-  for (const n of names) {
-    const list = parseKeyList(process.env[n]);
-    if (list.length) return list;
-  }
-  return [];
-}
-
-function hasAnyKey(names: string[]): boolean {
-  return names.some((n) => parseKeyList(process.env[n]).length > 0);
-}
-
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
   if (value) return value;
@@ -56,13 +44,6 @@ async function main(): Promise<void> {
   }
   const mcpServerUrl = process.env.MCP_SERVER_URL?.trim() || "http://mcp-server:8080/mcp";
   const mcpAuthToken = requiredEnv("MCP_AUTH_TOKEN");
-
-  // log rotating keys status (masked)
-  const geminiKeys = getRotatingKeys("GEMINI_API_KEYS");
-  const unoKeys = getRotatingKeys("UNOROUTER_API_KEYS");
-  console.log(`[keys] gemini: ${geminiKeys.length} key(s), unorouter: ${unoKeys.length} key(s)`);
-  if (unoKeys[0]) console.log(`[keys] unorouter primary: ${unoKeys[0].slice(0, 6)}...${unoKeys[0].slice(-4)}`);
-  if (geminiKeys[0]) console.log(`[keys] gemini primary: ${geminiKeys[0].slice(0, 6)}...${geminiKeys[0].slice(-4)}`);
 
   const manifestPath = new URL("./agent.manifest.json", import.meta.url);
   const file = JSON.parse(readFileSync(manifestPath, "utf8")) as ManifestFile;

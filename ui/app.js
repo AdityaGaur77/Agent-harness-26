@@ -258,8 +258,14 @@ async function mcpRequest(url, token, method, params, { notification = false } =
   const sess = res.headers.get("mcp-session-id") || res.headers.get("Mcp-Session-Id");
   if (sess) { mcpSessionId = sess; sessionStorage.setItem("blast_mcp_session", sess); }
   const text = await res.text();
-  const payload = parseMcpPayload(text);
-  if (!res.ok) throw new Error(payload?.error?.message || `MCP request failed (${res.status})`);
+  let payload = null;
+  try {
+    payload = parseMcpPayload(text);
+  } catch (error) {
+    if (!res.ok) throw new Error(`MCP request failed (${res.status})`);
+    throw error;
+  }
+  if (!res.ok) throw new Error(`MCP request failed (${res.status})${payload?.error?.message ? `: ${payload.error.message}` : ""}`);
   if (payload?.error) throw new Error(payload.error.message || "MCP request failed");
   return payload;
 }
@@ -284,7 +290,7 @@ async function mcpCall(url, token, method, params) {
   try {
     return await mcpRequest(url, token, method, params);
   } catch (error) {
-    const staleSession = mcpSessionId && /session_not_found|not initialized|request failed \(400\)/i.test(error.message || "");
+    const staleSession = mcpSessionId && /session[ _-]?not[ _-]?found|unknown session|not initialized|request failed \((?:400|404)\)/i.test(error.message || "");
     if (!staleSession || method === "initialize") throw error;
     await initializeMcp(url, token);
     return mcpRequest(url, token, method, params);
@@ -299,9 +305,12 @@ async function mcpTool(url, token, name, args) {
 
 async function exaSearch(query, options = {}) {
   try {
+    const headers = { "content-type": "application/json" };
+    const token = resolveMcpToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
     const res = await fetch(EXA_SEARCH_URL, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers,
       body: JSON.stringify({
         query,
         numResults: options.numResults ?? 10,
@@ -1153,6 +1162,16 @@ function updatePermissionsSummary() {
   permissionsSummary.textContent = `${enabled} enabled`;
 }
 
+function ensureDiscoveryPermission() {
+  if (standingAuthorization.discover) return true;
+  setRunState("question");
+  setStep("search", "waiting");
+  run.pendingQuestion = "discovery";
+  appendAudit("Needs you", "Search records permission is disabled");
+  appendAgentMessage("Search records is disabled in Permissions. Re-enable it before the agent checks any source.");
+  return false;
+}
+
 function clearUnavailableDetails() {
   run.evidence = [];
   renderRealEvidence([]);
@@ -1533,7 +1552,7 @@ async function startMission(prompt) {
   appendAudit("Search", hasGov ? "Likely sources mapped" : "Waiting for one detail");
 
   if (!(await waitFor(900, generation))) return;
-      // If the request includes a full name, continue without another identity question.
+  // If the request includes a full name, continue without another identity question.
   if (hasGov) {
     appendAudit("Identity", "Identity details confirmed");
     // Update identity card with gov name
@@ -1589,99 +1608,125 @@ async function continueAutonomousRun(identityInput = "") {
   const harnessUrl = resolveMcpUrl();
   const harnessToken = resolveMcpToken();
 
-  // Always run web search via Exa to find exposed info on the public web
-  setSubagentState("web", "active");
-  const webQuery = `personal information "${displayGov}" address phone email site:peoplefinders.com OR site:whitepages.com OR site:spokeo.com OR site:beenverified.com OR site:truthfinder.com OR site:intelius.com OR site:fastpeoplesearch.com`;
-  const webResults = await exaSearch(webQuery, { numResults: 10 });
-  setSubagentState("web", "done");
-  if (webResults.results && webResults.results.length > 0) {
-    run.evidence = webResults.results.map((r) => ({
-      table: `web:${new URL(r.url).hostname}`,
-      rows: 1,
-      discovered_via: r.title || r.url
-    }));
-    renderRealEvidence(run.evidence);
-    appendAudit("Search", `Found ${webResults.results.length} public listings for ${displayGov}`);
-  } else {
-    appendAudit("Search", `No public listings found for ${displayGov}`);
+  if (!ensureDiscoveryPermission()) return;
+  if (!harnessUrl || !harnessToken) {
+    setStep("search", "complete");
+    showServiceError("Connect the running service in Connections before starting a live request.");
+    appendAudit("Error", "No connected service is configured");
+    return;
   }
 
   let liveSuccess = false;
   let liveData = null;
-  if (harnessUrl && harnessToken) {
-    try {
-      // Find the matching profile and review the connected records.
-      // A numeric customer/subject id is already an explicit match. Avoid a
-      // lossy name lookup for requests such as “customer 4471”.
-      const lookup = subjectId
-        ? { matches: [{ id: subjectId, full_name: displayGov }] }
-        : await mcpTool(harnessUrl, harnessToken, "lookup_subject_by_name", { full_name: displayGov, limit: 5 });
-      const match = lookup?.matches?.[0];
-      if (!match?.id) throw new Error("No matching subject was found");
-      const sid = Number(match.id);
-      if (!sid) throw new Error("The subject match has no valid id");
-      if (!(await waitFor(520, generation))) return;
-      setSubagentState("identity", "done");
-      // Load the connected records.
-      const schema = await mcpTool(harnessUrl, harnessToken, "inspect_schema", {});
-      if (!Array.isArray(schema?.tables)) throw new Error("inspect_schema returned no tables");
-      const tables = schema.tables.length;
-      appendAudit("Review", `Reviewed ${tables} connected sources` + (lookup ? ", match found" : ""));
-      if (!(await waitFor(440, generation))) return;
-      setSubagentState("brokers", "done");
-      const fks = await mcpTool(harnessUrl, harnessToken, "list_foreign_keys", {});
-      if (!Array.isArray(fks?.foreign_keys)) throw new Error("list_foreign_keys returned no links");
-      appendAudit("Review", `Reviewed ${fks.foreign_keys.length} linked records`);
-      const policies = await mcpTool(harnessUrl, harnessToken, "get_retention_policies", {});
-      if (!Array.isArray(policies?.retention_policies)) throw new Error("get_retention_policies returned no policies");
-      appendAudit("Review", `Confirmed ${policies.retention_policies.length} records can be handled safely`);
-      if (!(await waitFor(440, generation))) return;
-      const subjectData = await mcpTool(harnessUrl, harnessToken, "find_subject_data", { subject_id: sid });
-      if (typeof subjectData?.total_rows_referencing_subject !== "number" || !Array.isArray(subjectData?.tables_with_subject_data)) {
-        throw new Error("find_subject_data returned an invalid payload");
-      }
-      const total = subjectData.total_rows_referencing_subject;
-      const tablesWithData = subjectData.tables_with_subject_data;
-      run.evidence = [...run.evidence, ...tablesWithData];
-      renderRealEvidence(run.evidence);
-      // Update identity card and evidence with live data
-      const idCard = document.querySelector(".identity-card strong");
-      if (idCard) idCard.textContent = match.full_name || displayGov;
-      const resultMatch = document.querySelector("#details-drawer .match-person");
-      const resultName = $("strong", resultMatch);
-      const resultLocation = $("span", resultMatch);
-      const resultMeta = $("small", resultMatch);
-      if (resultName) resultName.textContent = match.full_name || displayGov;
-      if (resultLocation) resultLocation.textContent = "Connected record";
-      if (resultMeta) resultMeta.textContent = subjectId ? "Customer id provided in the request" : "Matched by name in the connected source";
-      matchStatus.textContent = "Possible match";
-      setImpactValues([total, "Checking", "Checking", "Checking"]);
-      setSubagentState("records", "done");
-      setSubagentState("links", "done");
-      setStep("search", "complete");
-      setStep("check", "active");
-      setRunState("rehearsing");
-      impactState.textContent = "Reviewing";
-      impactCopy.textContent = `Found ${total} connected ${total === 1 ? "record" : "records"}. Possible changes are shown below.`;
-      appendAudit("Review", "Checked which records can be changed");
-      appendAudit("Review", `Found ${total} connected records` + (tablesWithData.length ? ` across ${tablesWithData.length} sources` : ""));
-      appendAudit("Review", "Prepared a change review");
-      // Prepare the change review.
-      await mcpTool(harnessUrl, harnessToken, "snapshot_to_shadow", {});
-      const naivePlan = { subject_id: sid, steps: [{ table: "customers", action: "hard_delete", where: "id = :subject_id" }] };
-      const naive = await mcpTool(harnessUrl, harnessToken, "rehearse_deletion", { plan: naivePlan });
-      if (typeof naive?.would_be_illegal !== "boolean") throw new Error("rehearse_deletion returned an invalid payload");
-      liveData = { subjectId: sid, displayGov, total, tablesWithData, naive, tables, links: fks.foreign_keys.length, safePlan: naivePlan };
-      run.liveData = liveData;
-      liveSuccess = true;
-    } catch (e) {
-      liveSuccess = false;
+  let liveFailureMessage = "The service is unavailable. Please try again.";
+  try {
+    if (!ensureDiscoveryPermission()) return;
+    // A numeric customer/subject id is already an explicit match. Names must
+    // resolve to exactly one full-name match before any source is searched.
+    const lookup = subjectId
+      ? { matches: [{ id: subjectId, full_name: displayGov }] }
+      : await mcpTool(harnessUrl, harnessToken, "lookup_subject_by_name", { full_name: resolvedGov.displayName, limit: 5 });
+    const matches = Array.isArray(lookup?.matches) ? lookup.matches : [];
+    if (!subjectId && matches.length !== 1) throw new Error("identity_match_required");
+    const match = matches[0];
+    if (!match?.id) throw new Error("No matching subject was found");
+    if (!subjectId && normalizePrompt(match.full_name) !== normalizePrompt(resolvedGov.displayName)) {
+      throw new Error("identity_match_required");
     }
+    const sid = Number(match.id);
+    if (!sid) throw new Error("The subject match has no valid id");
+    if (!(await waitFor(520, generation))) return;
+    setSubagentState("identity", "done");
+
+    // Search the public web only after the connected service has confirmed a
+    // unique identity and the user has left discovery enabled.
+    if (!ensureDiscoveryPermission()) return;
+    setSubagentState("web", "active");
+    const webQuery = `personal information "${displayGov}" address phone email site:peoplefinders.com OR site:whitepages.com OR site:spokeo.com OR site:beenverified.com OR site:truthfinder.com OR site:intelius.com OR site:fastpeoplesearch.com`;
+    const webResults = await exaSearch(webQuery, { numResults: 10 });
+    if (!ensureDiscoveryPermission()) return;
+    setSubagentState("web", "done");
+    if (webResults.results && webResults.results.length > 0) {
+      run.evidence = webResults.results.map((r) => ({
+        table: `web:${new URL(r.url).hostname}`,
+        rows: 1,
+        discovered_via: r.title || r.url
+      }));
+      renderRealEvidence(run.evidence);
+      appendAudit("Search", `Found ${webResults.results.length} public listings for ${displayGov}`);
+    } else {
+      appendAudit("Search", `No public listings found for ${displayGov}`);
+    }
+
+    if (!(await waitFor(520, generation))) return;
+    if (!ensureDiscoveryPermission()) return;
+    // Load the connected records.
+    const schema = await mcpTool(harnessUrl, harnessToken, "inspect_schema", {});
+    if (!Array.isArray(schema?.tables)) throw new Error("inspect_schema returned no tables");
+    const tables = schema.tables.length;
+    appendAudit("Review", `Reviewed ${tables} connected sources` + (lookup ? ", match found" : ""));
+    if (!(await waitFor(440, generation))) return;
+    if (!ensureDiscoveryPermission()) return;
+    setSubagentState("brokers", "done");
+    const fks = await mcpTool(harnessUrl, harnessToken, "list_foreign_keys", {});
+    if (!Array.isArray(fks?.foreign_keys)) throw new Error("list_foreign_keys returned no links");
+    appendAudit("Review", `Reviewed ${fks.foreign_keys.length} linked records`);
+    if (!ensureDiscoveryPermission()) return;
+    const policies = await mcpTool(harnessUrl, harnessToken, "get_retention_policies", {});
+    if (!Array.isArray(policies?.retention_policies)) throw new Error("get_retention_policies returned no policies");
+    appendAudit("Review", `Confirmed ${policies.retention_policies.length} records can be handled safely`);
+    if (!(await waitFor(440, generation))) return;
+    if (!ensureDiscoveryPermission()) return;
+    const subjectData = await mcpTool(harnessUrl, harnessToken, "find_subject_data", { subject_id: sid });
+    if (typeof subjectData?.total_rows_referencing_subject !== "number" || !Array.isArray(subjectData?.tables_with_subject_data)) {
+      throw new Error("find_subject_data returned an invalid payload");
+    }
+    const total = subjectData.total_rows_referencing_subject;
+    const tablesWithData = subjectData.tables_with_subject_data;
+    run.evidence = [...run.evidence, ...tablesWithData];
+    renderRealEvidence(run.evidence);
+    // Update identity card and evidence with live data
+    const idCard = document.querySelector(".identity-card strong");
+    if (idCard) idCard.textContent = match.full_name || displayGov;
+    const resultMatch = document.querySelector("#details-drawer .match-person");
+    const resultName = $("strong", resultMatch);
+    const resultLocation = $("span", resultMatch);
+    const resultMeta = $("small", resultMatch);
+    if (resultName) resultName.textContent = match.full_name || displayGov;
+    if (resultLocation) resultLocation.textContent = "Connected record";
+    if (resultMeta) resultMeta.textContent = subjectId ? "Customer id provided in the request" : "Matched by name in the connected source";
+    matchStatus.textContent = "Possible match";
+    setImpactValues([total, "Checking", "Checking", "Checking"]);
+    setSubagentState("records", "done");
+    setSubagentState("links", "done");
+    setStep("search", "complete");
+    setStep("check", "active");
+    setRunState("rehearsing");
+    impactState.textContent = "Reviewing";
+    impactCopy.textContent = `Found ${total} connected ${total === 1 ? "record" : "records"}. Possible changes are shown below.`;
+    appendAudit("Review", "Checked which records can be changed");
+    appendAudit("Review", `Found ${total} connected records` + (tablesWithData.length ? ` across ${tablesWithData.length} sources` : ""));
+    appendAudit("Review", "Prepared a change review");
+    // Prepare the change review.
+    if (!ensureDiscoveryPermission()) return;
+    await mcpTool(harnessUrl, harnessToken, "snapshot_to_shadow", {});
+    const naivePlan = { subject_id: sid, steps: [{ table: "customers", action: "hard_delete", where: "id = :subject_id" }] };
+    if (!ensureDiscoveryPermission()) return;
+    const naive = await mcpTool(harnessUrl, harnessToken, "rehearse_deletion", { plan: naivePlan });
+    if (typeof naive?.would_be_illegal !== "boolean") throw new Error("rehearse_deletion returned an invalid payload");
+    liveData = { subjectId: sid, displayGov, total, tablesWithData, naive, tables, links: fks.foreign_keys.length, safePlan: naivePlan };
+    run.liveData = liveData;
+    liveSuccess = true;
+  } catch (error) {
+    if (error instanceof Error && error.message === "identity_match_required") {
+      liveFailureMessage = "We need one exact, unique match before checking sources. Add more identity detail and try again.";
+    }
+    console.error(error);
   }
   if (!liveSuccess) {
     setStep("search", "complete");
-    showServiceError();
-    appendAudit("Error", "The service is unavailable. Please try again.");
+    showServiceError(liveFailureMessage);
+    appendAudit("Error", liveFailureMessage);
     return;
   }
 
@@ -1696,6 +1741,7 @@ async function continueAutonomousRun(identityInput = "") {
 
   if (!(await waitFor(680, generation))) return;
   try {
+    if (!ensureDiscoveryPermission()) return;
     const safePlan = {
       subject_id: liveData.subjectId,
       steps: [
@@ -1705,6 +1751,7 @@ async function continueAutonomousRun(identityInput = "") {
       ],
     };
     const safe = await mcpTool(harnessUrl, harnessToken, "rehearse_deletion", { plan: safePlan });
+    if (!ensureDiscoveryPermission()) return;
     if (!Array.isArray(safe?.retention_violations) || !safe?.rows_deleted_per_table || !safe?.anonymised_rows_per_table) {
       throw new Error("rehearse_deletion returned an invalid safe-plan payload");
     }
@@ -1900,6 +1947,17 @@ async function handleDeleteAction({ recordMessage = true } = {}) {
     return;
   }
   const btn = $("#delete-action");
+  if (!standingAuthorization.erase) {
+    setRunState("question");
+    setStep("act", "waiting");
+    appendAudit("Needs you", "Apply approved changes permission is disabled");
+    appendAgentMessage("Apply approved changes is disabled in Permissions. Re-enable it before approving this request.");
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Approval permission required";
+    }
+    return;
+  }
   if (btn) {
     btn.textContent = "Applying…";
     btn.disabled = true;
@@ -1910,7 +1968,12 @@ async function handleDeleteAction({ recordMessage = true } = {}) {
   appendAgentMessage("Only the approved information will be removed.");
   appendAudit("Approved", "Changes approved.");
   try {
-    const result = await mcpTool(resolveMcpUrl(), resolveMcpToken(), "execute_deletion", { plan: liveData.safePlan });
+    if (!standingAuthorization.erase) throw new Error("approval_permission_revoked");
+    if (!liveData.safe?.execution_token) throw new Error("The approved rehearsal has expired. Rehearse the plan again.");
+    const result = await mcpTool(resolveMcpUrl(), resolveMcpToken(), "execute_deletion", {
+      plan: liveData.safePlan,
+      execution_token: liveData.safe.execution_token,
+    });
     if (result?.executed !== true) throw new Error("The service could not complete the request");
     setRunState("monitoring");
     appendAudit("Review", `${liveData.total || 0} records accounted for. The result is being checked.`);
@@ -1983,6 +2046,10 @@ agentForm.addEventListener("submit", (event) => {
 
   if (run.waitingForLocation || run.state === "question") {
     const pendingQuestion = run.pendingQuestion || "name";
+    if (pendingQuestion === "discovery") {
+      appendAgentMessage("Enable Search records in Permissions before continuing.");
+      return;
+    }
     run.waitingForLocation = false;
     run.pendingQuestion = null;
     identityQuestion.hidden = true;
@@ -2090,6 +2157,37 @@ $$("[data-scope]").forEach((checkbox) => {
   checkbox.addEventListener("change", () => {
     standingAuthorization[checkbox.dataset.scope] = checkbox.checked;
     updatePermissionsSummary();
+    if (checkbox.dataset.scope === "discover" && checkbox.checked && run.mode === "live" && run.pendingQuestion === "discovery") {
+      run.pendingQuestion = null;
+      appendAgentMessage("Search records is enabled again. Resuming the request.");
+      continueAutonomousRun();
+    }
+    if (checkbox.dataset.scope === "erase" && run.mode === "live" && run.liveData?.safePlan) {
+      const actionButton = $("#delete-action");
+      if (checkbox.checked) {
+        if (run.state === "question") setRunState("complete");
+        setStep("act", "waiting");
+        if (actionButton) {
+          actionButton.disabled = false;
+          actionButton.textContent = "Approve and apply";
+        }
+        if (drawerApproveButton) {
+          drawerApproveButton.disabled = false;
+          drawerApproveButton.textContent = "Approve and apply";
+        }
+      } else if (run.state === "complete") {
+        setRunState("question");
+        setStep("act", "waiting");
+        if (actionButton) {
+          actionButton.disabled = false;
+          actionButton.textContent = "Approval permission required";
+        }
+        if (drawerApproveButton) {
+          drawerApproveButton.disabled = false;
+          drawerApproveButton.textContent = "Approval permission required";
+        }
+      }
+    }
     appendAudit(
       "Permission",
       checkbox.dataset.scope + " permission " + (checkbox.checked ? "enabled" : "disabled"),
