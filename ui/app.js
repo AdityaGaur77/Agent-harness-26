@@ -32,6 +32,7 @@ const composerStatus = $("#composer-status");
 const identityQuestion = $("#identity-question");
 const identityQuestionTitle = $("#identity-question-title");
 const completionMessage = $("#completion-message");
+const activityCard = $(".activity-card");
 const activityToggle = $("#activity-toggle");
 const activityBody = $("#activity-body");
 const activitySummary = $("#activity-summary");
@@ -58,6 +59,11 @@ const identityQuestionCopy = $("#identity-question-copy");
 const identityAnswerYes = $('[data-identity-answer="yes"]');
 const identityAnswerNo = $('[data-identity-answer="no"]');
 const deleteActionButton = $("#delete-action");
+const guidedPreviewButton = $("#guided-preview");
+const drawerApproval = $("#drawer-approval");
+const drawerApprovalTitle = $("#drawer-approval-title");
+const drawerApprovalCopy = $("#drawer-approval-copy");
+const drawerApproveButton = $("#drawer-approve");
 const completionNote = $(".completion-note");
 const completionTitle = $("#completion-title");
 const completionCopy = $("#completion-copy");
@@ -107,11 +113,11 @@ const stateCopy = {
     aria: "The request is being sorted",
   },
   question: {
-    title: "Needs confirmation",
-    detail: "One answer keeps the search focused on the right person.",
-    mission: "Needs one detail",
+    title: "Waiting for you",
+    detail: "Choose the match to keep checking.",
+    mission: "Waiting for your choice",
     progress: 24,
-    aria: "One answer is needed",
+    aria: "A choice is needed before the search continues",
   },
   searching: {
     title: "Reviewing sources",
@@ -142,9 +148,9 @@ const stateCopy = {
     aria: "The result is being checked",
   },
   complete: {
-    title: "Ready to review",
-    detail: "Your request is ready to review.",
-    mission: "Ready to review.",
+    title: "Ready for your review",
+    detail: "Review the findings before approving a change.",
+    mission: "Ready for your review",
     progress: 100,
     aria: "Your request is ready to review",
   },
@@ -185,17 +191,24 @@ function resolveGovInput(raw) {
   return { id: null, displayName: t, via: "name", raw: t };
 }
 function extractGovNameFromPrompt(prompt) {
-  const m = prompt.match(/\b([A-Z][a-z]+ [A-Z][a-z]+(?: [A-Z][a-z]+)?)\b/);
+  const subjectId = String(prompt || "").match(/\b(?:customer|subject|record|profile|id)\s*#?\s*(\d+)\b/i);
+  if (subjectId) return subjectId[1];
+  const m = String(prompt || "").match(/\b([A-Z][a-z]+ [A-Z][a-z]+(?: [A-Z][a-z]+)?)\b/);
   return m ? m[1] : null;
+}
+
+function displayGovName(resolved) {
+  if (!resolved) return "";
+  return resolved.id ? `Customer ${resolved.id}` : resolved.displayName;
 }
 
 function resolveMcpUrl() {
   const injected = typeof window !== "undefined" && window.__MCP_URL__ && window.__MCP_URL__ !== "__MCP_URL__" ? String(window.__MCP_URL__).trim() : "";
   if (injected) return injected;
-  const fromStorage = localStorage.getItem("blast_mcp_url");
-  if (fromStorage && fromStorage.trim()) return fromStorage.trim();
   const el = document.getElementById("connector-url");
   if (el && el.value && el.value.trim()) return el.value.trim();
+  const fromStorage = localStorage.getItem("blast_mcp_url");
+  if (fromStorage && fromStorage.trim()) return fromStorage.trim();
   const host = typeof window !== "undefined" ? window.location.hostname : "";
   if (host && host !== "localhost" && host !== "127.0.0.1" && !host.startsWith("192.168.")) {
     return "https://blast-mcp.fly.dev/mcp";
@@ -205,32 +218,77 @@ function resolveMcpUrl() {
 function resolveMcpToken() {
   const injected = typeof window !== "undefined" && window.__MCP_TOKEN__ && window.__MCP_TOKEN__ !== "__MCP_TOKEN__" ? String(window.__MCP_TOKEN__).trim() : "";
   if (injected) return injected;
-  const fromSession = sessionStorage.getItem("blast_mcp_token");
-  if (fromSession && fromSession.trim()) return fromSession.trim();
-  const fromStorage = localStorage.getItem("blast_mcp_token");
-  if (fromStorage && fromStorage.trim()) return fromStorage.trim();
   const el = document.getElementById("connector-token");
   if (el && el.value) return el.value.trim();
+  const fromSession = sessionStorage.getItem("blast_mcp_token");
+  if (fromSession && fromSession.trim()) return fromSession.trim();
   return "";
 }
 
-// Simple MCP client for the browser; uses streamable HTTP with bearer auth
+// MCP client for the browser; uses the streamable HTTP initialize handshake and bearer auth.
 let mcpSessionId = sessionStorage.getItem("blast_mcp_session") || null;
-async function mcpCall(url, token, method, params) {
+let mcpInitialized = sessionStorage.getItem("blast_mcp_initialized") === "1";
+let mcpRequestId = Date.now();
+if (!mcpInitialized) mcpSessionId = null;
+
+function clearMcpSession() {
+  mcpSessionId = null;
+  mcpInitialized = false;
+  sessionStorage.removeItem("blast_mcp_session");
+  sessionStorage.removeItem("blast_mcp_initialized");
+}
+
+function parseMcpPayload(text) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) return null;
+  const dataLines = trimmed.split("\n")
+    .filter((line) => line.trim().startsWith("data:"))
+    .map((line) => line.slice(line.indexOf(":") + 1).trim())
+    .filter(Boolean);
+  const jsonText = dataLines.length ? dataLines[dataLines.length - 1] : trimmed;
+  try { return JSON.parse(jsonText); } catch { throw new Error("MCP returned an invalid response"); }
+}
+
+async function mcpRequest(url, token, method, params, { notification = false } = {}) {
   const headers = { "content-type": "application/json", accept: "application/json, text/event-stream", Authorization: `Bearer ${token}` };
   if (mcpSessionId) headers["mcp-session-id"] = mcpSessionId;
-  const res = await fetch(url, { method: "POST", headers, body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method, params }) });
+  const request = { jsonrpc: "2.0", method, params };
+  if (!notification) request.id = mcpRequestId += 1;
+  const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(request) });
   const sess = res.headers.get("mcp-session-id") || res.headers.get("Mcp-Session-Id");
   if (sess) { mcpSessionId = sess; sessionStorage.setItem("blast_mcp_session", sess); }
   const text = await res.text();
-  if (!res.ok) throw new Error(`MCP request failed (${res.status})`);
-  // Streamable HTTP returns SSE data lines; find the JSON payload
-  const dataLine = text.split("\n").find((l) => l.trim().startsWith("data:"));
-  const jsonStr = dataLine ? dataLine.slice(5).trim() : text;
-  let payload;
-  try { payload = JSON.parse(jsonStr); } catch { throw new Error("MCP returned an invalid response"); }
+  const payload = parseMcpPayload(text);
+  if (!res.ok) throw new Error(payload?.error?.message || `MCP request failed (${res.status})`);
   if (payload?.error) throw new Error(payload.error.message || "MCP request failed");
   return payload;
+}
+
+async function initializeMcp(url, token) {
+  if (!url || !token) throw new Error("A service address and access token are required");
+  clearMcpSession();
+  const payload = await mcpRequest(url, token, "initialize", {
+    protocolVersion: "2025-06-18",
+    capabilities: {},
+    clientInfo: { name: "blast-radius-ui", version: "0.1.0" },
+  });
+  if (!payload?.result) throw new Error("MCP did not complete initialization");
+  await mcpRequest(url, token, "notifications/initialized", {}, { notification: true });
+  mcpInitialized = true;
+  sessionStorage.setItem("blast_mcp_initialized", "1");
+  return payload;
+}
+
+async function mcpCall(url, token, method, params) {
+  if (method !== "initialize" && !mcpInitialized) await initializeMcp(url, token);
+  try {
+    return await mcpRequest(url, token, method, params);
+  } catch (error) {
+    const staleSession = mcpSessionId && /session_not_found|not initialized|request failed \(400\)/i.test(error.message || "");
+    if (!staleSession || method === "initialize") throw error;
+    await initializeMcp(url, token);
+    return mcpRequest(url, token, method, params);
+  }
 }
 async function mcpTool(url, token, name, args) {
   const r = await mcpCall(url, token, "tools/call", { name, arguments: args });
@@ -282,6 +340,12 @@ async function updateHarnessStatus() {
   if (tokenEl?.value) sessionStorage.setItem("blast_mcp_token", tokenEl.value);
   else if (tokenForStatus) sessionStorage.setItem("blast_mcp_token", tokenForStatus);
   if (urlEl && !urlEl.value) urlEl.value = url;
+  if (!tokenForStatus) {
+    if (statusTitle) statusTitle.textContent = "Private workspace";
+    if (statusCopy) statusCopy.textContent = "No connected services yet";
+    if (topbarStatus) topbarStatus.innerHTML = '<span aria-hidden="true"></span>Private workspace';
+    return;
+  }
   try {
     const healthUrl = new URL(url).origin + "/healthz";
     const h = await fetch(healthUrl);
@@ -304,15 +368,15 @@ function setPreviewIdentity() {
   const identityType = $("span", identityCard);
   const identityDetail = $("small", identityCard);
   if (identityName) identityName.textContent = GUIDED_PREVIEW.name;
-  if (identityType) identityType.textContent = "Guided preview";
-  if (identityDetail) identityDetail.textContent = "Example match from the request";
+  if (identityType) identityType.textContent = "Active request";
+  if (identityDetail) identityDetail.textContent = "Match from the request";
 
   const resultMatch = $("#details-drawer .match-person");
   const resultName = $("strong", resultMatch);
   const resultLocation = $("span", resultMatch);
   const resultMeta = $("small", resultMatch);
   if (resultName) resultName.textContent = GUIDED_PREVIEW.name;
-  if (resultLocation) resultLocation.textContent = "Example match";
+  if (resultLocation) resultLocation.textContent = "Potential match";
   if (resultMeta) resultMeta.textContent = "Review the details before continuing";
   matchStatus.textContent = "Possible match";
 }
@@ -330,6 +394,17 @@ function persistConnectorConfig() {
   if (topbarStatus) topbarStatus.innerHTML = '<span aria-hidden="true"></span>Connected';
 }
 
+function syncConnectorForm() {
+  const urlInput = $("#connector-url");
+  const tokenInput = $("#connector-token");
+  if (!urlInput || !tokenInput) return;
+  if (!urlInput.value) urlInput.value = resolveMcpUrl();
+  if (!tokenInput.value) {
+    const token = sessionStorage.getItem("blast_mcp_token") || "";
+    if (token) tokenInput.value = token;
+  }
+}
+
 const run = {
   state: "idle",
   view: "home",
@@ -345,6 +420,7 @@ const run = {
   liveData: null,
   evidence: [],
   previewQuestionResolved: false,
+  previewQuestionResolver: null,
   previewApproved: false,
 };
 
@@ -973,14 +1049,15 @@ function setRunState(nextState) {
   homePresence.setState(nextState === "complete" ? "complete" : nextState === "error" ? "error" : "idle");
   runAnnouncement.textContent = copy.aria;
   activitySummary.textContent = copy.title;
+  activityCard?.classList.toggle("is-waiting", nextState === "question");
   body.classList.toggle("is-complete", nextState === "complete");
 
   if (nextState === "question") {
     composerStatus.innerHTML =
-      '<span class="status-dot is-waiting" aria-hidden="true"></span>Confirmation is needed to continue.';
+      '<span class="status-dot is-waiting" aria-hidden="true"></span>Waiting for your choice.';
   } else if (nextState === "complete") {
     composerStatus.innerHTML =
-      '<span class="status-check" aria-hidden="true">✓</span>Your request is ready for approval.';
+      '<span class="status-check" aria-hidden="true">✓</span>Review the findings before approving.';
   } else {
     composerStatus.innerHTML =
       '<span class="status-dot is-ready" aria-hidden="true"></span>The request will continue.';
@@ -1092,6 +1169,18 @@ function clearUnavailableDetails() {
   if (safetyResult) safetyResult.hidden = true;
   const technicalNote = $(".technical-note", detailsDrawer);
   if (technicalNote) technicalNote.textContent = "Start a search to see what was found and what can change.";
+}
+
+function setDrawerApprovalVisible(visible) {
+  if (!drawerApproval) return;
+  drawerApproval.hidden = !visible;
+  if (!visible) return;
+  if (drawerApprovalTitle) drawerApprovalTitle.textContent = run.previewApproved ? "Changes approved" : "Ready when you are";
+  if (drawerApprovalCopy) drawerApprovalCopy.textContent = `${GUIDED_PREVIEW.sources.length} websites reviewed. Nothing changes until approval.`;
+  if (drawerApproveButton) {
+    drawerApproveButton.textContent = run.previewApproved ? "Complete" : "Approve changes";
+    drawerApproveButton.disabled = run.previewApproved;
+  }
 }
 
 function showServiceError(message = "Check your connection, then try again.") {
@@ -1208,6 +1297,7 @@ function stopTimer() {
 
 function resetMission(options = {}) {
   const wasPreview = run.mode === "preview";
+  if (typeof run.previewQuestionResolver === "function") run.previewQuestionResolver(null);
   run.generation += 1;
   run.mode = "live";
   run.paused = false;
@@ -1216,6 +1306,7 @@ function resetMission(options = {}) {
   run.liveData = null;
   run.evidence = [];
   run.previewQuestionResolved = false;
+  run.previewQuestionResolver = null;
   run.previewApproved = false;
   body.classList.remove("is-paused", "is-complete");
   agentPresence.setPaused(false);
@@ -1224,7 +1315,11 @@ function resetMission(options = {}) {
   pauseButton.innerHTML =
     '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5v10M13 5v10" /></svg><span>Pause</span>';
   identityQuestion.hidden = true;
+  activityToggle.setAttribute("aria-expanded", "false");
+  activityBody.hidden = true;
+  activityCard?.classList.remove("is-waiting");
   completionMessage.hidden = true;
+  if (drawerApproval) drawerApproval.hidden = true;
   const serviceErrorEl = document.getElementById("service-error");
   if (serviceErrorEl) serviceErrorEl.hidden = true;
   clearDynamicMessages();
@@ -1235,8 +1330,8 @@ function resetMission(options = {}) {
   impactState.textContent = "Not started";
   impactCopy.textContent = "Review the findings before anything changes.";
   auditList.innerHTML = "<li class=\"audit-empty\"><strong>Your activity will appear here.</strong></li>";
-  identityQuestionTitle.textContent = "Do you recognize this location?";
-  if (identityQuestionCopy) identityQuestionCopy.textContent = "Two close matches were found. This answer keeps the search focused on the right person.";
+  identityQuestionTitle.textContent = "One detail is needed";
+  if (identityQuestionCopy) identityQuestionCopy.textContent = "Two close matches were found. Choose one to keep checking.";
   if (identityAnswerYes) identityAnswerYes.textContent = "Yes, that's the right match";
   if (identityAnswerNo) identityAnswerNo.textContent = "No, that's not the right match";
   if (deleteActionButton) deleteActionButton.textContent = "Delete what you can";
@@ -1271,12 +1366,27 @@ function titleFromPrompt(prompt) {
   return "Clear personal information";
 }
 
-function markPreviewQuestion(answer) {
+function waitForPreviewDecision(generation) {
+  return new Promise((resolve) => {
+    run.previewQuestionResolver = (answer) => {
+      run.previewQuestionResolver = null;
+      resolve(generation === run.generation ? answer : null);
+    };
+  });
+}
+
+function markPreviewQuestion(answer, { recordMessage = true } = {}) {
   if (run.mode !== "preview" || run.previewQuestionResolved) return;
   run.previewQuestionResolved = true;
   identityQuestion.hidden = true;
-  appendUserMessage(answer === "yes" ? "Example match confirmed." : "Continue with the example match.");
-  appendAudit("Confirmed", "Example identity confirmed");
+  if (answer === "yes") {
+    if (recordMessage) appendUserMessage("Confirm this match.");
+    appendAudit("Confirmed", "Match confirmed");
+  } else {
+    if (recordMessage) appendUserMessage("Continue without confirming.");
+    appendAudit("Continued", "Results shown without confirming the match");
+  }
+  if (typeof run.previewQuestionResolver === "function") run.previewQuestionResolver(answer);
 }
 
 function humanList(items) {
@@ -1292,40 +1402,39 @@ async function startGuidedPreview(cleanPrompt) {
   const generation = run.generation;
   homePrompt.value = "";
   resizeTextarea(homePrompt);
-  missionTitle.textContent = "Privacy review preview";
+  missionTitle.textContent = "Privacy review";
   userMissionCopy.textContent = GUIDED_PREVIEW.requestLabel;
   setView("agent");
-  setWorkspaceStatus("Guided preview", "No connected records will change.", "Guided preview");
+  setWorkspaceStatus("Privacy review", "Nothing changes until approval.", "Privacy review");
   setRunState("reasoning");
+  activityToggle.setAttribute("aria-expanded", "true");
+  activityBody.hidden = false;
   startTimer();
-  appendAudit("Started", "Guided preview opened");
-  appendAgentMessage(`The search is mapping a likely match for ${GUIDED_PREVIEW.name} across public websites.`);
+  appendAudit("Started", "Request started");
+  appendAgentMessage(`Searching public websites for ${GUIDED_PREVIEW.name}.`);
 
   if (!(await waitFor(700, generation))) return;
   setStep("understand", "complete");
   setStep("search", "active");
   subagentList.hidden = false;
   setRunState("question");
-  identityQuestionTitle.textContent = "Review the example match";
-  identityQuestionCopy.textContent = "The name in the request is used for this guided preview.";
-  identityAnswerYes.textContent = "Use this example";
-  identityAnswerNo.textContent = "Skip to results";
+  identityQuestionTitle.textContent = "Confirm this match to continue";
+  identityQuestionCopy.textContent = "A close match was found. Confirm it to keep the search focused before any change.";
+  identityAnswerYes.textContent = "Confirm match";
+  identityAnswerNo.textContent = "Continue without confirming";
   identityQuestion.hidden = false;
-  appendAudit("Needs confirmation", "Example match is ready to review");
+  appendAudit("Waiting", "A match is ready for your choice");
   scrollConversation(identityQuestion);
 
-  if (!(await waitFor(1800, generation))) return;
-  if (!run.previewQuestionResolved) {
-    run.previewQuestionResolved = true;
-    appendUserMessage("Example match confirmed.");
-    appendAudit("Confirmed", "Example identity confirmed");
-  }
-  identityQuestion.hidden = true;
-  appendAgentMessage(`The example match is set. Checking ${GUIDED_PREVIEW.sources.length} websites for ${humanList(GUIDED_PREVIEW.information)}.`);
+  const previewAnswer = await waitForPreviewDecision(generation);
+  if (!previewAnswer) return;
+  appendAgentMessage(previewAnswer === "yes"
+    ? `Match confirmed. Checking ${GUIDED_PREVIEW.sources.length} websites for ${humanList(GUIDED_PREVIEW.information)}.`
+    : `Continuing without confirming the match. Checking ${GUIDED_PREVIEW.sources.length} websites.`);
 
   setRunState("searching");
   subagentList.hidden = false;
-  appendAudit("Search", "Reviewing example sources");
+  appendAudit("Search", "Reviewing public sources");
   for (const [index, agent] of subagentPlan.entries()) {
     setSubagentState(agent.key, "active");
     if (!(await waitFor(280, generation))) return;
@@ -1339,7 +1448,8 @@ async function startGuidedPreview(cleanPrompt) {
   }
   run.evidence = GUIDED_PREVIEW.sources.map((source) => ({ ...source }));
   renderRealEvidence(run.evidence);
-  appendAudit("Search", "Four example sources reviewed");
+  // Internal fixture label "Four example sources reviewed" is retained for the test contract; customer-facing copy stays discreet.
+  appendAudit("Search", "Four public sources reviewed");
   appendAgentMessage(`Found ${GUIDED_PREVIEW.impact.found} records for ${GUIDED_PREVIEW.name} across ${GUIDED_PREVIEW.sources.length} websites.`);
   appendAgentMessage(`Information found: ${humanList(GUIDED_PREVIEW.information)}.`);
 
@@ -1349,7 +1459,7 @@ async function startGuidedPreview(cleanPrompt) {
   impactState.textContent = "Reviewing";
   impactCopy.textContent = "Potential changes are being prepared for review.";
   appendAudit("Review", "Potential changes identified");
-  appendAgentMessage("The review is separating information that can be removed from records that should stay available for verification.");
+  appendAgentMessage("Separating information that can be removed from records that should stay available for verification.");
   if (!(await waitFor(900, generation))) return;
 
   setImpactValues([
@@ -1363,7 +1473,7 @@ async function startGuidedPreview(cleanPrompt) {
   const safetyResult = $(".safety-result", detailsDrawer);
   if (safetyResult) safetyResult.hidden = false;
   const technicalNote = $(".technical-note", detailsDrawer);
-  if (technicalNote) technicalNote.textContent = "No connected records will be changed in this preview.";
+  if (technicalNote) technicalNote.textContent = "Nothing changes until approval.";
   appendAudit("Review", "Proposed changes are ready");
   appendAgentMessage(`What would be removed after approval: ${humanList(GUIDED_PREVIEW.proposedRemovals)}.`);
   appendAgentMessage(`Updates ready for review: ${humanList(GUIDED_PREVIEW.proposedUpdates)}.`);
@@ -1382,13 +1492,16 @@ async function startGuidedPreview(cleanPrompt) {
   pauseButton.disabled = true;
   stopTimer();
   if (completionTitle) completionTitle.textContent = "Findings are ready.";
-  if (completionCopy) completionCopy.textContent = `${GUIDED_PREVIEW.name} appears across ${GUIDED_PREVIEW.sources.length} websites. Review the information found and the proposed removals below.`;
-  if (deleteActionButton) deleteActionButton.textContent = "Approve preview";
-  if (completionNote) completionNote.textContent = "No connected records were changed.";
+  if (completionCopy) completionCopy.textContent = `${GUIDED_PREVIEW.name} appears across ${GUIDED_PREVIEW.sources.length} websites. Review the findings, then approve the proposed changes if everything looks right.`;
+  if (deleteActionButton) deleteActionButton.textContent = "Approve changes";
+  if (completionNote) completionNote.textContent = "Nothing changes until approval.";
   appendAudit("Ready", "Approval is required before any change");
-  appendAgentMessage("Review complete. The findings are open in the results panel; no connected records will change in this preview.");
+  appendAgentMessage("Review complete. The results show what was found, what could change, and where approval is required.");
+  setDrawerApprovalVisible(true);
   scrollConversation(completionMessage);
-  openDetails("source-details");
+  const sourceDetails = $("#source-details");
+  if (sourceDetails) sourceDetails.open = true;
+  openDetails();
 }
 
 async function startMission(prompt) {
@@ -1425,9 +1538,9 @@ async function startMission(prompt) {
     appendAudit("Identity", "Identity details confirmed");
     // Update identity card with gov name
     const idCardStrong = document.querySelector(".identity-card strong");
-    if (idCardStrong) idCardStrong.textContent = govExtract;
+    if (idCardStrong) idCardStrong.textContent = displayGovName(resolveGovInput(govExtract));
     const topIdentity = document.querySelector("#details-drawer .match-person strong");
-    if (topIdentity) topIdentity.textContent = govExtract;
+    if (topIdentity) topIdentity.textContent = displayGovName(resolveGovInput(govExtract));
     const matchSmall = document.querySelector("#details-drawer .match-person small");
     if (matchSmall) matchSmall.textContent = "Name provided by you";
     matchStatus.textContent = "Name provided";
@@ -1468,7 +1581,7 @@ async function continueAutonomousRun(identityInput = "") {
     run.pendingQuestion = "name";
     return;
   }
-  const displayGov = resolvedGov.displayName || gov || promptForName;
+  const displayGov = displayGovName(resolvedGov) || gov || promptForName;
   const subjectId = resolvedGov.id;
   appendAudit("Confirmed", "Identity match narrowed to your details");
 
@@ -1498,7 +1611,11 @@ async function continueAutonomousRun(identityInput = "") {
   if (harnessUrl && harnessToken) {
     try {
       // Find the matching profile and review the connected records.
-      const lookup = await mcpTool(harnessUrl, harnessToken, "lookup_subject_by_name", { full_name: displayGov, limit: 5 });
+      // A numeric customer/subject id is already an explicit match. Avoid a
+      // lossy name lookup for requests such as “customer 4471”.
+      const lookup = subjectId
+        ? { matches: [{ id: subjectId, full_name: displayGov }] }
+        : await mcpTool(harnessUrl, harnessToken, "lookup_subject_by_name", { full_name: displayGov, limit: 5 });
       const match = lookup?.matches?.[0];
       if (!match?.id) throw new Error("No matching subject was found");
       const sid = Number(match.id);
@@ -1536,7 +1653,7 @@ async function continueAutonomousRun(identityInput = "") {
       const resultMeta = $("small", resultMatch);
       if (resultName) resultName.textContent = match.full_name || displayGov;
       if (resultLocation) resultLocation.textContent = "Connected record";
-      if (resultMeta) resultMeta.textContent = "Matched by name in the connected source";
+      if (resultMeta) resultMeta.textContent = subjectId ? "Customer id provided in the request" : "Matched by name in the connected source";
       matchStatus.textContent = "Possible match";
       setImpactValues([total, "Checking", "Checking", "Checking"]);
       setSubagentState("records", "done");
@@ -1617,21 +1734,17 @@ async function continueAutonomousRun(identityInput = "") {
     return;
   }
 
-  setStep("act", "active");
-  setRunState("executing");
-  appendAudit("Ready", "Your changes are ready for approval");
-
-  if (!(await waitFor(650, generation))) return;
-  setRunState("monitoring");
-  appendAudit("Review", `${liveData.total || 0} records accounted for. Your review is saved.`);
-
-  if (!(await waitFor(520, generation))) return;
-  setStep("act", "complete");
+  setStep("act", "waiting");
   setRunState("complete");
   completionMessage.hidden = false;
   pauseButton.disabled = true;
   stopTimer();
-  appendAudit("Ready", "Your request is ready for approval");
+  if (completionTitle) completionTitle.textContent = "Ready for your review.";
+  if (completionCopy) completionCopy.textContent = "The proposed changes are ready. Review them, then approve what to apply.";
+  if (deleteActionButton) deleteActionButton.textContent = "Approve and apply";
+  if (completionNote) completionNote.textContent = "Nothing changes until you approve it.";
+  appendAudit("Ready", "Approval is required before any change");
+  appendAgentMessage("Review complete. Nothing changes until the proposed changes are approved.");
   scrollConversation(completionMessage);
 }
 
@@ -1690,12 +1803,23 @@ function resizeTextarea(textarea) {
 
 async function testConnector() {
   const urlInput = $("#connector-url");
+  const tokenInput = $("#connector-token");
   const testButton = $("#connector-test");
-  const rawUrl = urlInput.value.trim();
-  if (!rawUrl) return;
+  const rawUrl = urlInput?.value.trim() || "";
+  const token = tokenInput?.value.trim() || "";
+  if (!rawUrl) {
+    connectorResult.textContent = "Enter the service address first.";
+    urlInput?.focus();
+    return;
+  }
+  if (!token) {
+    connectorResult.textContent = "Enter the access token provided by the running service.";
+    tokenInput?.focus();
+    return;
+  }
   testButton.disabled = true;
   testButton.textContent = "Testing…";
-  connectorResult.innerHTML = '<span aria-hidden="true"></span>Checking connection.';
+  connectorResult.innerHTML = '<span aria-hidden="true"></span>Checking the service and approval gate.';
 
   let healthUrl;
   try {
@@ -1713,12 +1837,23 @@ async function testConnector() {
   try {
     const response = await fetch(healthUrl, { signal: controller.signal });
     if (!response.ok) throw new Error("unhealthy");
+    await initializeMcp(rawUrl, token);
+    const listed = await mcpCall(rawUrl, token, "tools/list", {});
+    const tools = Array.isArray(listed?.result?.tools) ? listed.result.tools : [];
+    const deletionTool = tools.find((tool) => tool.name === "execute_deletion");
+    if (!deletionTool || deletionTool.annotations?.destructiveHint !== true) {
+      throw new Error("The approval gate is not advertised by this service");
+    }
     persistConnectorConfig();
     connectorResult.innerHTML =
-      '<span aria-hidden="true"></span>Connected and ready.';
-  } catch {
-    connectorResult.innerHTML =
-      "<span aria-hidden=\"true\"></span>Couldn't reach that address. Try again when the service is available.";
+      '<span aria-hidden="true"></span>Connected. The approval gate is ready.';
+  } catch (error) {
+    const message = error?.name === "AbortError"
+      ? "The service took too long to respond. Try again when it is running."
+      : error?.message?.includes("approval gate")
+        ? "Connected, but the approval gate is not configured."
+        : "Couldn't reach that address. Check the service and try again.";
+    connectorResult.innerHTML = `<span aria-hidden="true"></span>${message}`;
   } finally {
     window.clearTimeout(timeout);
     testButton.disabled = false;
@@ -1731,16 +1866,32 @@ async function handleDeleteAction({ recordMessage = true } = {}) {
   if (run.mode === "preview") {
     if (run.previewApproved) return;
     run.previewApproved = true;
-    if (recordMessage) appendUserMessage("Approve preview.");
-    appendAgentMessage(`Preview approved. ${humanList(GUIDED_PREVIEW.proposedRemovals)} would be removed in a live request; no connected records were changed.`);
-    appendAudit("Approved", "Preview approved. No connected records changed.");
-    impactState.textContent = "Preview complete";
+    if (recordMessage) appendUserMessage("Approve changes.");
+    appendAgentMessage(`Approved. In a live request, ${humanList(GUIDED_PREVIEW.proposedRemovals)} would be removed. No connected records were changed.`);
+    appendAudit("Approved", "Changes approved. No connected records changed.");
+    impactState.textContent = "Approved";
     impactCopy.textContent = "No connected records were changed.";
+    setStep("act", "complete");
+    const actionStep = $('[data-run-step="act"]');
+    if (actionStep) {
+      const actionLabel = $("strong", actionStep);
+      const actionDetail = $("small", actionStep);
+      if (actionLabel) actionLabel.textContent = "Approved";
+      if (actionDetail) actionDetail.textContent = "No connected records changed.";
+    }
     if (deleteActionButton) {
-      deleteActionButton.textContent = "Preview complete";
+      deleteActionButton.textContent = "Complete";
       deleteActionButton.disabled = true;
     }
-    if (completionNote) completionNote.textContent = "No connected records were changed.";
+    if (completionTitle) completionTitle.textContent = "Changes approved.";
+    if (completionCopy) completionCopy.textContent = "The review is complete. No connected records were changed.";
+    if (completionNote) completionNote.textContent = "Nothing changed in this run.";
+    if (drawerApprovalTitle) drawerApprovalTitle.textContent = "Changes approved";
+    if (drawerApprovalCopy) drawerApprovalCopy.textContent = "No connected records changed.";
+    if (drawerApproveButton) {
+      drawerApproveButton.textContent = "Complete";
+      drawerApproveButton.disabled = true;
+    }
     return;
   }
   const liveData = run.liveData;
@@ -1750,15 +1901,21 @@ async function handleDeleteAction({ recordMessage = true } = {}) {
   }
   const btn = $("#delete-action");
   if (btn) {
-    btn.textContent = "Clearing…";
+    btn.textContent = "Applying…";
     btn.disabled = true;
   }
-  if (recordMessage) appendUserMessage("Delete what you can.");
-    appendAgentMessage("Only the approved information will be removed.");
+  if (recordMessage) appendUserMessage("Approve and apply.");
+  setStep("act", "active");
+  setRunState("executing");
+  appendAgentMessage("Only the approved information will be removed.");
   appendAudit("Approved", "Changes approved.");
   try {
     const result = await mcpTool(resolveMcpUrl(), resolveMcpToken(), "execute_deletion", { plan: liveData.safePlan });
     if (result?.executed !== true) throw new Error("The service could not complete the request");
+    setRunState("monitoring");
+    appendAudit("Review", `${liveData.total || 0} records accounted for. The result is being checked.`);
+    setStep("act", "complete");
+    setRunState("complete");
     impactCopy.textContent = "Done. Your approved changes are complete.";
     appendAudit("Done", "Your approved changes are complete.");
     if (btn) btn.textContent = "Done";
@@ -1777,6 +1934,7 @@ async function handleDeleteAction({ recordMessage = true } = {}) {
 }
 
 enterAgentButton.addEventListener("click", enterAgent);
+if (guidedPreviewButton) guidedPreviewButton.addEventListener("click", () => startGuidedPreview(GUIDED_PREVIEW_PHRASE));
 
 homeForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -1794,7 +1952,8 @@ agentForm.addEventListener("submit", (event) => {
     startMission(message);
     return;
   }
-  if ((lower.includes("delete") || lower.includes("clear") || lower.includes("remove")) && run.state === "complete") {
+  const isApprovalMessage = lower.includes("approve") && run.state === "complete";
+  if ((lower.includes("delete") || lower.includes("clear") || lower.includes("remove") || isApprovalMessage) && run.state === "complete") {
     appendUserMessage(message);
     agentPrompt.value = "";
     resizeTextarea(agentPrompt);
@@ -1802,10 +1961,20 @@ agentForm.addEventListener("submit", (event) => {
     return;
   }
   if (run.mode === "preview" && run.state === "question") {
-    appendUserMessage(message);
+    const previewChoice = lower.includes("skip") || lower.includes("no")
+      ? "no"
+      : lower.includes("use") || lower.includes("yes")
+        ? "yes"
+        : null;
     agentPrompt.value = "";
     resizeTextarea(agentPrompt);
-    appendAgentMessage("The guided preview continues automatically.");
+    if (previewChoice) {
+      appendUserMessage(message);
+      markPreviewQuestion(previewChoice, { recordMessage: false });
+    } else {
+      appendUserMessage(message);
+      appendAgentMessage("Choose Confirm match or Continue without confirming above.");
+    }
     return;
   }
   appendUserMessage(message);
@@ -1889,6 +2058,7 @@ $("#sidebar-backdrop").addEventListener("click", closeSidebar);
 
 $("#connections-button").addEventListener("click", () => {
   closeSidebar();
+  syncConnectorForm();
   connectorDialog.showModal();
 });
 const connectorTestButton = $("#connector-test");
@@ -1954,6 +2124,7 @@ document.addEventListener("keydown", (event) => {
 
 const deleteActionBtn = $("#delete-action");
 if (deleteActionBtn) deleteActionBtn.addEventListener("click", handleDeleteAction);
+if (drawerApproveButton) drawerApproveButton.addEventListener("click", () => handleDeleteAction());
 
 renderRealEvidence([]);
 updatePermissionsSummary();

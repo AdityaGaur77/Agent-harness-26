@@ -145,7 +145,7 @@
                   </div>
 
                   <h2 id="home-title">What would you like to find or remove?</h2>
-                  <p class="home-subtitle">What would you like to find or remove? The agent decides where to look and asks only when a match is unclear.</p>
+                  <p class="home-subtitle">Tell the agent what to look for. It chooses where to search and asks only when a match is unclear.</p>
 
                   <form class="prompt-card" id="home-form">
                     <label class="sr-only" for="home-prompt">Describe what you want the agent to find or remove</label>
@@ -161,6 +161,14 @@
                       </button>
                     </div>
                   </form>
+
+                  <div class="preview-entry" aria-label="Try a request">
+                    <button class="preview-entry-button" id="guided-preview" type="button">
+                      <span>Try a request</span>
+                      <span class="preview-entry-arrow" aria-hidden="true">↗</span>
+                    </button>
+                    <p>See what the agent does before anything changes.</p>
+                  </div>
 
                 </div>
 
@@ -280,7 +288,7 @@
                   <section class="activity-card" aria-labelledby="activity-card-title">
                     <button class="activity-card-heading" id="activity-toggle" type="button" aria-expanded="false">
                       <span><strong id="activity-card-title">Current activity</strong></span>
-                      <span class="sr-only" id="activity-summary">Request is being sorted</span>
+                      <span class="activity-card-state" id="activity-summary">Request is being sorted</span>
                       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" /></svg>
                     </button>
                     <div class="activity-card-body" id="activity-body" hidden>
@@ -306,8 +314,8 @@
                   <section class="question-card" id="identity-question" hidden aria-labelledby="identity-question-title">
                     <div class="question-icon" aria-hidden="true">[?]</div>
                     <div class="question-content">
-                      <h3 id="identity-question-title">Do you recognize this location?</h3>
-                      <p id="identity-question-copy">Two close matches were found. This answer keeps the search focused on the right person.</p>
+                      <h3 id="identity-question-title">One detail is needed</h3>
+                      <p id="identity-question-copy">Two close matches were found. Choose one to keep checking.</p>
                       <div class="question-actions">
                         <button class="answer-button answer-primary" type="button" data-identity-answer="yes">Yes, that's the right match</button>
                         <button class="answer-button" type="button" data-identity-answer="no">No, that's not the right match</button>
@@ -352,7 +360,7 @@
         <header class="drawer-header">
           <div>
             <h2 id="details-title">Agent results</h2>
-            <p id="details-description">Review the match and proposed changes. Nothing runs without your permission.</p>
+            <p id="details-description">Review the match, sources, and proposed changes. Approve only when it looks right.</p>
           </div>
           <button class="icon-button" id="details-close" type="button" aria-label="Close agent results">
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg>
@@ -387,6 +395,15 @@
               <p class="technical-note">The agent checks each proposed change before it touches connected records.</p>
             </section>
           </div>
+
+          <section class="drawer-approval" id="drawer-approval" hidden aria-labelledby="drawer-approval-title">
+            <div class="drawer-approval-copy">
+              <span class="eyebrow">Your approval</span>
+              <strong id="drawer-approval-title">Ready when you are</strong>
+              <p id="drawer-approval-copy">Nothing changes until approval.</p>
+            </div>
+            <button class="answer-button answer-primary" id="drawer-approve" type="button">Approve changes</button>
+          </section>
 
           <details class="drawer-details" id="source-details">
             <summary><span><strong>Sources</strong><small id="source-summary">Not searched yet</small></span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" /></svg></summary>
@@ -425,9 +442,11 @@
           <div><p class="eyebrow">Connection</p><h2>Connect a service</h2></div>
           <button class="icon-button" value="cancel" aria-label="Close connections"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg></button>
         </header>
-        <p class="dialog-intro">Your connected services are managed securely for this workspace.</p>
+        <p class="dialog-intro">Use the service address and access token from the running TrueForge and Daytona setup. The token stays in this browser session.</p>
+        <label for="connector-url"><span>Service address</span><input id="connector-url" type="url" inputmode="url" autocomplete="url" placeholder="https://your-mcp-service.example/mcp" /></label>
+        <label for="connector-token"><span>Access token</span><input id="connector-token" type="password" autocomplete="off" placeholder="Bearer token" /></label>
         <div class="connection-result" id="connector-result" role="status" aria-live="polite"><span aria-hidden="true"></span> Services are ready.</div>
-        <div class="dialog-actions"><button class="answer-button" value="cancel">Close</button></div>
+        <div class="dialog-actions"><button class="answer-button" value="cancel">Close</button><button class="answer-button answer-primary" id="connector-test" type="button">Test connection</button></div>
       </form>
     </dialog>
 
@@ -444,6 +463,6 @@
       </form>
     </dialog>
 
-    <script src="./app.js?v=20260829-gallop" defer></script>
+    <script src="./app.js?v=20260829-live-harness" defer></script>
   </body>
 </html>
