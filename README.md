@@ -41,7 +41,7 @@ Short version, once you know the shape of it:
 
 ```bash
 cp .env.example .env          # set MCP_AUTH_TOKEN, and see docs/SETUP.md re: port defaults
-docker compose up -d --build  # postgres + redis + the subject-data MCP server
+docker compose up -d --build --wait  # primary MCP :8080; synthetic demo MCP :8081
 ```
 
 Register the MCP connector in TrueForge (Settings → Connectors → Add MCP
@@ -52,6 +52,12 @@ TrueForge shares a Docker network with this stack: if it does, use
 `http://host.docker.internal:<MCP_HOST_PORT>/mcp` from the host's point of
 view instead, since `localhost` inside TrueForge's own container means
 TrueForge, not this one.
+
+The hackathon agent uses the dedicated synthetic-demo MCP service: use
+`http://127.0.0.1:8081/mcp` for standalone TrueForge, or
+`http://host.docker.internal:8081/mcp` when TrueForge runs in its own Docker
+stack. Port `8080` remains the isolated `blast_main` development and smoke-test
+endpoint.
 
 Register the skill (Settings → Skills → Add Skill) with a repository URL,
 path `skills/gdpr-erasure`, and a **ref pinned to a commit SHA**, not a
