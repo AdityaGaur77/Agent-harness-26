@@ -116,6 +116,11 @@ flowchart LR
     Gate -->|Allow, plus the token from the approved rehearsal| MCP
     Harness -.session state survives a closed tab.-> Harness
 ```
+- **AI model integration (Aarav Vivek).** Aarav connected DeepSeek V4 Flash
+  as a supported reasoning model for the agent. The model interprets the
+  user’s request and decides which workflow steps and tools to use, while
+  TrueForge controls tool access, sandboxing, and human approval. The model
+  can be changed through the `MODEL_NAME` environment variable.
 
 - **MCP tool routing with approval annotations.** All seven tools
   (`inspect_schema`, `list_foreign_keys`, `get_retention_policies`,
