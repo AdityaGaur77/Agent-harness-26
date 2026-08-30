@@ -206,7 +206,7 @@ function resolveMcpUrl() {
   if (fromStorage && fromStorage.trim()) return fromStorage.trim();
   const host = typeof window !== "undefined" ? window.location.hostname : "";
   if (host && host !== "localhost" && host !== "127.0.0.1" && !host.startsWith("192.168.")) {
-    return "https://blast-mcp.fly.dev/mcp";
+    return "https://blast-mcp.onrender.com/mcp";
   }
   return "http://localhost:8080/mcp";
 }
