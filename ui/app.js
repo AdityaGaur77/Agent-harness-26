@@ -306,7 +306,13 @@ async function mcpCall(url, token, method, params) {
 }
 async function mcpTool(url, token, name, args) {
   const r = await mcpCall(url, token, "tools/call", { name, arguments: args });
-  if (r?.result?.isError) throw new Error(r.result.content?.[0]?.text || `${name} failed`);
+  if (r?.result?.isError) {
+    const error = new Error(r.result.content?.[0]?.text || `${name} failed`);
+    // An MCP tool error is a response from the service, not a lost transport
+    // response. The server has definitively refused or rolled back the call.
+    error.definitiveNoChange = true;
+    throw error;
+  }
   const c = r?.result?.content?.[0]?.text || r?.raw || "";
   try { return JSON.parse(c); } catch { throw new Error(`${name} returned an invalid payload`); }
 }
@@ -527,6 +533,7 @@ class PresenceAgent {
       monitoring: 0.85,
       complete: 0.3,
       error: 0.18,
+      indeterminate: 0.12,
     }[this.state];
   }
 
@@ -2003,6 +2010,7 @@ async function handleDeleteAction({ recordMessage = true } = {}) {
   setRunState("executing");
   appendAgentMessage("Only the approved information will be removed.");
   appendAudit("Approved", "Changes approved.");
+  const executionGeneration = run.generation;
   let executionDispatched = false;
   let executionConnector = null;
   try {
@@ -2018,7 +2026,13 @@ async function handleDeleteAction({ recordMessage = true } = {}) {
       plan: liveData.safePlan,
       execution_token: liveData.safe.execution_token,
     });
-    if (result?.executed !== true) throw new Error("The service could not complete the request");
+    if (result?.executed === false) {
+      const error = new Error("The service rolled back the approved request. No changes were made.");
+      error.definitiveNoChange = true;
+      throw error;
+    }
+    if (result?.executed !== true) throw new Error("The service returned an unknown execution result");
+    if (executionGeneration !== run.generation) return;
     setRunState("monitoring");
     appendAudit("Review", `${liveData.total || 0} records accounted for. The result is being checked.`);
     setStep("act", "complete");
@@ -2028,7 +2042,9 @@ async function handleDeleteAction({ recordMessage = true } = {}) {
     if (btn) btn.textContent = "Done";
     appendAgentMessage("Done. Your approved changes are complete.");
   } catch (error) {
-    if (executionDispatched) {
+    const definitiveNoChange = error?.definitiveNoChange === true;
+    if (executionDispatched && !definitiveNoChange) {
+      if (executionGeneration !== run.generation) return;
       // The server redeems the token before committing. A lost response is
       // therefore indeterminate, not proof that nothing changed. Reconcile
       // once with a read-only check, then require a fresh request rather than
@@ -2050,11 +2066,14 @@ async function handleDeleteAction({ recordMessage = true } = {}) {
       if (executionConnector && standingAuthorization.discover) {
         try {
           reconciliation = await mcpTool(executionConnector.url, executionConnector.token, "find_subject_data", { subject_id: liveData.subjectId });
+          if (executionGeneration !== run.generation) return;
           liveData.reconciliation = reconciliation;
         } catch (reconciliationError) {
+          if (executionGeneration !== run.generation) return;
           console.warn("Execution reconciliation unavailable", reconciliationError);
         }
       }
+      if (executionGeneration !== run.generation) return;
       const checked = typeof reconciliation?.total_rows_referencing_subject === "number";
       appendAudit("Needs you", checked
         ? `Execution response was lost. Read-only reconciliation checked ${reconciliation.total_rows_referencing_subject} connected rows.`
@@ -2065,11 +2084,15 @@ async function handleDeleteAction({ recordMessage = true } = {}) {
       scrollConversation(completionMessage);
       return;
     }
+    if (executionGeneration !== run.generation) return;
     setRunState("error");
     clearUnavailableDetails();
     if (error instanceof Error && error.message === "approval_connector_changed") {
       appendAudit("Needs you", "The connected service changed after review");
       appendAgentMessage("The connected service changed after this review. Reconnect it and run the request again before approving.");
+    } else if (definitiveNoChange) {
+      appendAudit("Error", "The approved request was refused or rolled back. No changes were made.");
+      appendAgentMessage("The approved request was refused or rolled back. No changes were made. Rehearse the request again before trying again.");
     } else {
       console.error(error);
       appendAudit("Error", "The request could not be completed. Please try again.");
