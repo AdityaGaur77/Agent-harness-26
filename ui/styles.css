@@ -264,19 +264,6 @@ body[data-view="home"] .details-topbar-button { display: none; }
 }
 .prompt-card textarea::placeholder, .agent-composer textarea::placeholder { color: var(--faint); }
 .prompt-card-footer { display: flex; align-items: center; gap: 10px; min-height: 36px; margin-top: 12px; border-top: 1px solid var(--line-faint); padding-top: 10px; }
-.preview-entry {
-  display: flex; align-items: baseline; justify-content: center; gap: 10px; width: min(100%, 680px); margin-top: 16px;
-  color: var(--muted); text-align: center;
-}
-.preview-entry-button {
-  display: inline-flex; align-items: center; gap: 7px; padding: 4px 0; border-bottom: 1px solid var(--line-strong);
-  background: transparent; color: var(--ink); font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
-  transition: color 180ms var(--ease-out), border-color 180ms var(--ease-out), transform 180ms var(--ease-out);
-}
-.preview-entry-button:hover { border-color: var(--ink); color: var(--accent); }
-.preview-entry-button:active { transform: translateY(1px); }
-.preview-entry-arrow { font-size: 14px; font-weight: 400; line-height: 1; }
-.preview-entry p { margin: 0; color: var(--faint); font-size: 11px; line-height: 1.4; }
 .composer-tool {
   display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 6px;
   background: transparent; color: var(--muted); font-size: 12px; font-weight: 600; border: 1px solid transparent;
@@ -665,6 +652,14 @@ body.is-details-open .details-drawer {
   color: var(--ink); font-size: 13px; outline: 0; transition: border-color 200ms var(--ease-out);
 }
 .dialog-card input:focus, .dialog-card select:focus { border-color: var(--ink); }
+.runtime-status {
+  display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; padding: 10px 0;
+  border-top: 1px solid var(--line-faint); border-bottom: 1px solid var(--line-faint);
+}
+.runtime-status > span { flex: 0 0 auto; color: var(--muted); font-family: var(--font-mono); font-size: 10px; line-height: 1.45; }
+.runtime-status p { display: grid; gap: 2px; margin: 0; }
+.runtime-status strong { color: var(--ink); font-size: 11px; font-weight: 700; }
+.runtime-status small { color: var(--muted); font-size: 11px; line-height: 1.45; }
 .connection-result {
   display: flex; align-items: center; gap: 8px; margin-top: 14px; padding: 10px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
   border-radius: 0; background: transparent; color: var(--muted); font-size: 11px; line-height: 1.45;
@@ -718,7 +713,6 @@ body.is-details-open .details-drawer {
   .landing-entry { grid-template-columns: auto minmax(0, 1fr); gap: 12px; }
   .landing-note { justify-self: end; font-size: 8px; text-align: right; }
   .home-intro h2 { font-size: 30px; }
-  .preview-entry { align-items: center; flex-direction: column; gap: 4px; }
   .home-presence { min-height: 190px; }
   .agent-presence-home { height: 190px; font-size: 5.4px; }
   .mission-progress { grid-template-columns: 92px minmax(0,1fr) auto; gap: 10px; padding: 8px 0; }

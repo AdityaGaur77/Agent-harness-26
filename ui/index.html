@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Blast Radius is a private agent that helps you find and remove personal information online." />
+    <meta name="description" content="Blast Radius maps connected customer records, rehearses changes, and asks before anything irreversible." />
     <title>Blast Radius</title>
     <link rel="icon" href="data:," />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -42,7 +42,7 @@
         <div class="landing-copy">
           <p class="eyebrow">A personal privacy agent</p>
           <h1 id="landing-title">Your personal data,<br /><em>under your direction.</em></h1>
-          <p id="landing-description">Find and verify personal information, then approve every change.</p>
+          <p id="landing-description">The agent maps what is connected, rehearses the change, and asks before anything irreversible.</p>
         </div>
         <div class="landing-entry">
           <button class="landing-cta" id="enter-agent" type="button">
@@ -145,11 +145,11 @@
                   </div>
 
                   <h2 id="home-title">What would you like to find or remove?</h2>
-                  <p class="home-subtitle">Tell the agent what to look for. It chooses where to search and asks only when a match is unclear.</p>
+                  <p class="home-subtitle">Tell the agent what to look for. It maps connected records, shows its work, and asks before anything irreversible.</p>
 
                   <form class="prompt-card" id="home-form">
                     <label class="sr-only" for="home-prompt">Describe what you want the agent to find or remove</label>
-                    <textarea id="home-prompt" name="mission" rows="2" placeholder="Find an address on people-search sites and remove it." required></textarea>
+                    <textarea id="home-prompt" name="mission" rows="2" placeholder="Find everything connected to a customer and remove only what policy allows." required></textarea>
                     <div class="prompt-card-footer">
                       <button class="composer-tool" id="add-details" type="button">
                         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
@@ -161,14 +161,6 @@
                       </button>
                     </div>
                   </form>
-
-                  <div class="preview-entry" aria-label="Try a request">
-                    <button class="preview-entry-button" id="guided-preview" type="button">
-                      <span>Try a request</span>
-                      <span class="preview-entry-arrow" aria-hidden="true">↗</span>
-                    </button>
-                    <p>See what the agent does before anything changes.</p>
-                  </div>
 
                 </div>
 
@@ -281,7 +273,7 @@
                   <article class="message message-agent">
                     <div class="agent-message-mark" aria-hidden="true">[br]</div>
                     <div class="message-content agent-prose">
-                      <p>Public records, broker sites, and linked sources will be checked. If a match could belong to someone else, confirmation will be requested before continuing.</p>
+                      <p>The agent will map connected records, rehearse the requested change, and pause before anything irreversible.</p>
                     </div>
                   </article>
 
@@ -330,6 +322,7 @@
                       <p id="completion-copy">The connected records were checked. Review the findings, then choose which information to remove.</p>
                       <div class="message-actions">
                         <button class="answer-button answer-primary" type="button" id="delete-action">Delete what you can</button>
+                        <button class="answer-button" type="button" id="deny-action" hidden>Not yet</button>
                         <button class="answer-button" type="button" data-open-details>See findings</button>
                       </div>
                       <p class="completion-note">Nothing changes until you approve it.</p>
@@ -442,9 +435,11 @@
           <div><p class="eyebrow">Connection</p><h2>Connect a service</h2></div>
           <button class="icon-button" value="cancel" aria-label="Close connections"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg></button>
         </header>
-        <p class="dialog-intro">Use the service address and access token from the running TrueForge and Daytona setup. The token stays in this browser session.</p>
+        <p class="dialog-intro">Connect the data service used for searches. If the agent runtime is configured for this workspace, new requests run through its live session and approval gate.</p>
         <label for="connector-url"><span>Service address</span><input id="connector-url" type="url" inputmode="url" autocomplete="url" placeholder="https://your-mcp-service.example/mcp" /></label>
         <label for="connector-token"><span>Access token</span><input id="connector-token" type="password" autocomplete="off" placeholder="Bearer token" /></label>
+        <label for="trueforge-ui-token"><span>Agent workspace token <small>(if required)</small></span><input id="trueforge-ui-token" type="password" autocomplete="off" placeholder="Workspace token" /></label>
+        <div class="runtime-status" id="trueforge-status" role="status" aria-live="polite"><span aria-hidden="true">[ ]</span><p><strong>Agent runtime</strong><small>Checking workspace configuration…</small></p></div>
         <div class="connection-result" id="connector-result" role="status" aria-live="polite"><span aria-hidden="true"></span> Services are ready.</div>
         <div class="dialog-actions"><button class="answer-button" value="cancel">Close</button><button class="answer-button answer-primary" id="connector-test" type="button">Test connection</button></div>
       </form>

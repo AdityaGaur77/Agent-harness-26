@@ -2,6 +2,8 @@ const $ = (selector, scope = document) => scope.querySelector(selector);
 const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
 
 const EXA_SEARCH_URL = "/api/exa-search";
+const TRUEFORGE_PROXY_URL = "/api/trueforge-session";
+const TRUEFORGE_AGENT_NAME = "blast-radius";
 
 const body = document.body;
 const skipLink = $(".skip-link");
@@ -59,31 +61,17 @@ const identityQuestionCopy = $("#identity-question-copy");
 const identityAnswerYes = $('[data-identity-answer="yes"]');
 const identityAnswerNo = $('[data-identity-answer="no"]');
 const deleteActionButton = $("#delete-action");
-const guidedPreviewButton = $("#guided-preview");
 const drawerApproval = $("#drawer-approval");
 const drawerApprovalTitle = $("#drawer-approval-title");
 const drawerApprovalCopy = $("#drawer-approval-copy");
 const drawerApproveButton = $("#drawer-approve");
+const denyActionButton = $("#deny-action");
+const trueForgeStatus = $("#trueforge-status");
 const completionNote = $(".completion-note");
 const completionTitle = $("#completion-title");
 const completionCopy = $("#completion-copy");
 
 const VIEW_TRANSITION_MS = 280;
-const GUIDED_PREVIEW_PHRASE = "find information on jane austin";
-const GUIDED_PREVIEW = {
-  name: "Jane Austin",
-  requestLabel: "Find personal information",
-  sources: [
-    { table: "people-search", website: "PeopleFinders (peoplefinders.com)", rows: 3, discovered_via: "PeopleFinders (peoplefinders.com)", detail: "Name and location", finding: "Name and location details found.", confidence: "High match" },
-    { table: "public-directory", website: "Whitepages (whitepages.com)", rows: 2, discovered_via: "Whitepages (whitepages.com)", detail: "Phone and email", finding: "A phone number and email address found.", confidence: "Likely match" },
-    { table: "property-record", website: "Spokeo (spokeo.com)", rows: 1, discovered_via: "Spokeo (spokeo.com)", detail: "Previous address", finding: "A previous address found.", confidence: "Needs review" },
-    { table: "account-profile", website: "BeenVerified (beenverified.com)", rows: 1, discovered_via: "BeenVerified (beenverified.com)", detail: "Username and email", finding: "A username and email address found.", confidence: "Likely match" },
-  ],
-  information: ["name", "location", "phone number", "email address", "previous address", "username"],
-  proposedRemovals: ["public phone number", "public email address", "previous address", "exposed username"],
-  proposedUpdates: ["opt-out status on two websites", "connected record status"],
-  impact: { found: 7, remove: 4, update: 2, review: 1 },
-};
 
 const RUN_STATES = [
   "idle",
@@ -188,7 +176,6 @@ const standingAuthorization = {
 // Resolve a customer-provided name before searching connected services.
 function normalizeGovInput(s) { return s.trim().replace(/\s+/g, " "); }
 function normalizePrompt(s) { return String(s || "").trim().replace(/\s+/g, " ").toLowerCase(); }
-function isGuidedPreviewPrompt(prompt) { return normalizePrompt(prompt) === GUIDED_PREVIEW_PHRASE; }
 function resolveGovInput(raw) {
   const t = normalizeGovInput(raw);
   if (!t) return null;
@@ -231,6 +218,171 @@ function resolveMcpToken() {
   const fromSession = sessionStorage.getItem("blast_mcp_token");
   if (fromSession && fromSession.trim()) return fromSession.trim();
   return "";
+}
+
+// TrueForge is the stateful agent path. Browser requests go through the
+// same-origin proxy so its server token never enters the page; the client only
+// keeps the session/turn cursor needed to render and resume a live stream.
+function resolveTrueForgeUiToken() {
+  const injected = typeof window !== "undefined" && window.__TRUEFORGE_UI_TOKEN__ && window.__TRUEFORGE_UI_TOKEN__ !== "__TRUEFORGE_UI_TOKEN__"
+    ? String(window.__TRUEFORGE_UI_TOKEN__).trim()
+    : "";
+  if (injected) return injected;
+  const input = document.getElementById("trueforge-ui-token");
+  if (input?.value) return input.value.trim();
+  const fromSession = sessionStorage.getItem("blast_trueforge_ui_token");
+  return fromSession?.trim() || "";
+}
+
+const trueForgeRuntime = {
+  checked: false,
+  available: false,
+  ready: false,
+  agentName: TRUEFORGE_AGENT_NAME,
+  sessionId: sessionStorage.getItem("blast_trueforge_session") || null,
+  turnId: sessionStorage.getItem("blast_trueforge_turn") || null,
+  lastSequenceNumber: Number(sessionStorage.getItem("blast_trueforge_sequence") || 0),
+  events: new Map(),
+  currentMessageNodes: new Map(),
+  threadSlots: new Map(),
+  pendingApprovals: [],
+  pendingQuestions: [],
+  pendingAuth: null,
+  streamController: null,
+};
+
+function persistTrueForgeRuntime() {
+  if (trueForgeRuntime.sessionId) sessionStorage.setItem("blast_trueforge_session", trueForgeRuntime.sessionId);
+  else sessionStorage.removeItem("blast_trueforge_session");
+  if (trueForgeRuntime.turnId) sessionStorage.setItem("blast_trueforge_turn", trueForgeRuntime.turnId);
+  else sessionStorage.removeItem("blast_trueforge_turn");
+  if (Number.isFinite(trueForgeRuntime.lastSequenceNumber)) sessionStorage.setItem("blast_trueforge_sequence", String(trueForgeRuntime.lastSequenceNumber));
+}
+
+function clearTrueForgeSession() {
+  trueForgeRuntime.sessionId = null;
+  trueForgeRuntime.turnId = null;
+  trueForgeRuntime.lastSequenceNumber = 0;
+  trueForgeRuntime.events.clear();
+  trueForgeRuntime.currentMessageNodes.clear();
+  trueForgeRuntime.threadSlots = new Map();
+  trueForgeRuntime.pendingApprovals = [];
+  trueForgeRuntime.pendingQuestions = [];
+  trueForgeRuntime.pendingAuth = null;
+  persistTrueForgeRuntime();
+}
+
+function trueForgeErrorFromResponse(status, payload, fallback) {
+  const error = new Error(payload?.message || payload?.error || fallback || `TrueForge request failed (${status})`);
+  error.status = status;
+  error.code = payload?.error || "trueforge_request_failed";
+  return error;
+}
+
+async function trueForgeJson(action, payload = {}) {
+  const token = resolveTrueForgeUiToken();
+  const headers = { "content-type": "application/json", accept: "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const response = await fetch(TRUEFORGE_PROXY_URL, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ action, ...payload }),
+  });
+  const text = await response.text();
+  let parsed = null;
+  try { parsed = text ? JSON.parse(text) : null; } catch { /* handled below */ }
+  if (!response.ok) throw trueForgeErrorFromResponse(response.status, parsed, "The agent runtime is unavailable.");
+  return parsed || {};
+}
+
+function parseSseBlock(block) {
+  let id;
+  const data = [];
+  for (const line of block.split(/\r?\n/)) {
+    if (line.startsWith("id:")) id = line.slice(3).trim();
+    if (line.startsWith("data:")) data.push(line.slice(5).trimStart());
+  }
+  if (!data.length || data.join("\n") === "[DONE]") return { id, event: null };
+  try {
+    return { id, event: JSON.parse(data.join("\n")) };
+  } catch {
+    throw new Error("The agent runtime returned an invalid event.");
+  }
+}
+
+async function readTrueForgeStream(response, onEvent) {
+  if (!response.body) throw new Error("The agent runtime returned an empty stream.");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    buffer += decoder.decode(chunk.value, { stream: true });
+    const blocks = buffer.split(/\r?\n\r?\n/);
+    buffer = blocks.pop() || "";
+    for (const block of blocks) {
+      const parsed = parseSseBlock(block);
+      if (parsed.event) await onEvent(parsed.event, parsed.id);
+    }
+  }
+  buffer += decoder.decode();
+  if (buffer.trim()) {
+    const parsed = parseSseBlock(buffer);
+    if (parsed.event) await onEvent(parsed.event, parsed.id);
+  }
+}
+
+async function trueForgeStream(action, payload, onEvent, signal) {
+  const token = resolveTrueForgeUiToken();
+  const headers = { "content-type": "application/json", accept: "text/event-stream" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const response = await fetch(TRUEFORGE_PROXY_URL, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ action, ...payload }),
+    signal,
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    let parsed = null;
+    try { parsed = text ? JSON.parse(text) : null; } catch { /* use fallback */ }
+    throw trueForgeErrorFromResponse(response.status, parsed, "The agent runtime is unavailable.");
+  }
+  await readTrueForgeStream(response, onEvent);
+}
+
+async function checkTrueForge({ quiet = false } = {}) {
+  try {
+    const status = await trueForgeJson("status");
+    trueForgeRuntime.checked = true;
+    trueForgeRuntime.available = status.configured === true;
+    trueForgeRuntime.ready = status.ready === true;
+    trueForgeRuntime.agentName = status.agent?.name || TRUEFORGE_AGENT_NAME;
+    if (!quiet) {
+      updateTrueForgeStatusCopy(trueForgeRuntime.ready
+        ? `Connected · ${trueForgeRuntime.agentName}`
+        : "Runtime is connected, but the privacy agent is not provisioned");
+    }
+  } catch (error) {
+    trueForgeRuntime.checked = true;
+    trueForgeRuntime.available = false;
+    trueForgeRuntime.ready = false;
+    if (!quiet) updateTrueForgeStatusCopy(error.code === "ui_auth_not_configured"
+      ? "Add the workspace token to enable the agent runtime"
+      : "Direct service mode · TrueForge is not connected");
+  }
+  return trueForgeRuntime;
+}
+
+function updateTrueForgeStatusCopy(copy) {
+  if (!trueForgeStatus) return;
+  const mark = $("span", trueForgeStatus);
+  const title = $("strong", trueForgeStatus);
+  const detail = $("small", trueForgeStatus);
+  if (mark) mark.textContent = trueForgeRuntime.ready ? "[x]" : "[ ]";
+  if (title) title.textContent = trueForgeRuntime.ready ? "Agent runtime connected" : "Agent runtime";
+  if (detail) detail.textContent = copy;
 }
 
 // MCP client for the browser; uses the streamable HTTP initialize handshake and bearer auth.
@@ -350,6 +502,13 @@ async function updateHarnessStatus() {
   const url = resolveMcpUrl();
   const tokenForStatus = resolveMcpToken();
   const isFly = url.includes("fly.dev");
+  const runtime = trueForgeRuntime.ready ? trueForgeRuntime : await checkTrueForge({ quiet: true });
+  if (runtime.ready) {
+    if (statusTitle) statusTitle.textContent = "Agent runtime";
+    if (statusCopy) statusCopy.textContent = "Connected and ready";
+    if (topbarStatus) topbarStatus.innerHTML = '<span aria-hidden="true"></span>Agent connected';
+    return;
+  }
   if (statusTitle) statusTitle.textContent = "Connected services";
   if (statusCopy) {
     try {
@@ -385,30 +544,13 @@ function setWorkspaceStatus(title, copy, pill = title) {
   if (topbarStatus) topbarStatus.innerHTML = `<span aria-hidden="true"></span>${pill}`;
 }
 
-function setPreviewIdentity() {
-  const identityCard = $(".identity-card");
-  const identityName = $("strong", identityCard);
-  const identityType = $("span", identityCard);
-  const identityDetail = $("small", identityCard);
-  if (identityName) identityName.textContent = GUIDED_PREVIEW.name;
-  if (identityType) identityType.textContent = "Active request";
-  if (identityDetail) identityDetail.textContent = "Match from the request";
-
-  const resultMatch = $("#details-drawer .match-person");
-  const resultName = $("strong", resultMatch);
-  const resultLocation = $("span", resultMatch);
-  const resultMeta = $("small", resultMatch);
-  if (resultName) resultName.textContent = GUIDED_PREVIEW.name;
-  if (resultLocation) resultLocation.textContent = "Potential match";
-  if (resultMeta) resultMeta.textContent = "Review the details before continuing";
-  matchStatus.textContent = "Possible match";
-}
-
 function persistConnectorConfig() {
   const url = $("#connector-url")?.value.trim();
   const token = $("#connector-token")?.value.trim();
+  const trueForgeToken = $("#trueforge-ui-token")?.value.trim();
   if (url) localStorage.setItem("blast_mcp_url", url);
   if (token) sessionStorage.setItem("blast_mcp_token", token);
+  if (trueForgeToken) sessionStorage.setItem("blast_trueforge_ui_token", trueForgeToken);
   const statusCopy = $("#workspace-status-copy");
   const statusTitle = $("#workspace-status-title");
   const topbarStatus = $("#topbar-status");
@@ -420,11 +562,16 @@ function persistConnectorConfig() {
 function syncConnectorForm() {
   const urlInput = $("#connector-url");
   const tokenInput = $("#connector-token");
+  const trueForgeTokenInput = $("#trueforge-ui-token");
   if (!urlInput || !tokenInput) return;
   if (!urlInput.value) urlInput.value = resolveMcpUrl();
   if (!tokenInput.value) {
     const token = sessionStorage.getItem("blast_mcp_token") || "";
     if (token) tokenInput.value = token;
+  }
+  if (trueForgeTokenInput && !trueForgeTokenInput.value) {
+    const token = sessionStorage.getItem("blast_trueforge_ui_token") || "";
+    if (token) trueForgeTokenInput.value = token;
   }
 }
 
@@ -442,9 +589,6 @@ const run = {
   pendingQuestion: null,
   liveData: null,
   evidence: [],
-  previewQuestionResolved: false,
-  previewQuestionResolver: null,
-  previewApproved: false,
   liveReviewReady: false,
   executionIndeterminate: false,
 };
@@ -1215,11 +1359,20 @@ function setDrawerApprovalVisible(visible) {
   if (!drawerApproval) return;
   drawerApproval.hidden = !visible;
   if (!visible) return;
-  if (drawerApprovalTitle) drawerApprovalTitle.textContent = run.previewApproved ? "Changes approved" : "Ready when you are";
-  if (drawerApprovalCopy) drawerApprovalCopy.textContent = `${GUIDED_PREVIEW.sources.length} websites reviewed. Nothing changes until approval.`;
+  if (run.mode === "trueforge") {
+    if (drawerApprovalTitle) drawerApprovalTitle.textContent = "Approval is required";
+    if (drawerApprovalCopy) drawerApprovalCopy.textContent = "The agent is paused before an irreversible change. Nothing runs until approval.";
+    if (drawerApproveButton) {
+      drawerApproveButton.textContent = "Approve and continue";
+      drawerApproveButton.disabled = false;
+    }
+    return;
+  }
+  if (drawerApprovalTitle) drawerApprovalTitle.textContent = "Ready when you are";
+  if (drawerApprovalCopy) drawerApprovalCopy.textContent = "Review the measured changes. Nothing changes until approval.";
   if (drawerApproveButton) {
-    drawerApproveButton.textContent = run.previewApproved ? "Complete" : "Approve changes";
-    drawerApproveButton.disabled = run.previewApproved;
+    drawerApproveButton.textContent = "Approve and apply";
+    drawerApproveButton.disabled = false;
   }
 }
 
@@ -1304,6 +1457,523 @@ function appendAgentMessage(text) {
   scrollConversation();
 }
 
+function trueForgeText(content) {
+  if (typeof content === "string") return content.trim();
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part) => typeof part === "string" ? part : part?.text || "")
+    .join("")
+    .trim();
+}
+
+function trueForgeRawText(content) {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part) => typeof part === "string" ? part : part?.text || "")
+    .join("");
+}
+
+function trueForgeToolLabel(name) {
+  const labels = {
+    lookup_subject_by_name: "matching the right person",
+    inspect_schema: "mapping connected records",
+    list_foreign_keys: "checking linked records",
+    get_retention_policies: "checking what must stay",
+    find_subject_data: "finding connected information",
+    snapshot_to_shadow: "making a safe working copy",
+    rehearse_deletion: "checking the proposed changes",
+    execute_deletion: "applying the approved changes",
+    ask_user_question: "waiting for an answer",
+    list_tools: "checking available safeguards",
+    get_tool_info: "reviewing a connected safeguard",
+    exec: "working in a protected sandbox",
+  };
+  return labels[name] || "checking a connected source";
+}
+
+function trueForgeToolName(call) {
+  const declaredName = call?.function?.name || call?.name || "";
+  if (declaredName !== "call_tool") return declaredName;
+  const rawArguments = call?.function?.arguments;
+  if (rawArguments && typeof rawArguments === "object") return rawArguments.tool_name || declaredName;
+  if (typeof rawArguments !== "string") return declaredName;
+  try {
+    const parsed = JSON.parse(rawArguments);
+    return typeof parsed?.tool_name === "string" && parsed.tool_name.trim()
+      ? parsed.tool_name.trim()
+      : declaredName;
+  } catch {
+    return declaredName;
+  }
+}
+
+function trueForgeToolAction(name) {
+  const actions = {
+    lookup_subject_by_name: "match the right person",
+    inspect_schema: "map connected records",
+    list_foreign_keys: "check linked records",
+    get_retention_policies: "check what must stay",
+    find_subject_data: "find connected information",
+    snapshot_to_shadow: "make a safe working copy",
+    rehearse_deletion: "check the proposed changes",
+    execute_deletion: "apply the approved changes",
+    ask_user_question: "wait for an answer",
+    list_tools: "check available safeguards",
+    get_tool_info: "review a connected safeguard",
+    exec: "work in a protected sandbox",
+  };
+  return actions[name] || "continue with the reviewed change";
+}
+
+function trueForgeMessageNode(id) {
+  const existing = trueForgeRuntime.currentMessageNodes.get(id);
+  if (existing) return existing;
+  const article = document.createElement("article");
+  article.className = "message message-agent is-dynamic";
+  const mark = document.createElement("div");
+  mark.className = "agent-message-mark";
+  mark.setAttribute("aria-hidden", "true");
+  mark.textContent = "[br]";
+  const content = document.createElement("div");
+  content.className = "message-content agent-prose";
+  const paragraph = document.createElement("p");
+  content.append(paragraph);
+  article.append(mark, content);
+  conversationThread.insertBefore(article, completionMessage);
+  trueForgeRuntime.currentMessageNodes.set(id, { article, paragraph });
+  return { article, paragraph };
+}
+
+function mergeTrueForgeDelta(event) {
+  const base = trueForgeRuntime.events.get(event.id);
+  if (!base) {
+    const created = {
+      type: "model.message",
+      id: event.id,
+      thread_id: event.thread_id,
+      content: "",
+      tool_calls: [],
+    };
+    if (event.content) created.content = event.content;
+    if (event.tool_calls) created.tool_calls = event.tool_calls;
+    trueForgeRuntime.events.set(event.id, created);
+    return created;
+  }
+  if (event.content !== undefined) base.content = `${trueForgeRawText(base.content)}${trueForgeRawText(event.content)}`;
+  if (Array.isArray(event.tool_calls)) {
+    base.tool_calls ||= [];
+    event.tool_calls.forEach((delta, index) => {
+      const targetIndex = Number.isInteger(delta.index) ? delta.index : index;
+      const target = base.tool_calls[targetIndex] || (base.tool_calls[targetIndex] = { id: "", type: "function", function: { name: "", arguments: "" } });
+      if (delta.id) target.id = delta.id;
+      if (delta.type) target.type = delta.type;
+      if (delta.function?.name) target.function.name = `${target.function.name || ""}${delta.function.name}`;
+      if (delta.function?.arguments) target.function.arguments = `${target.function.arguments || ""}${delta.function.arguments}`;
+    });
+  }
+  return base;
+}
+
+function rememberTrueForgeEvent(event) {
+  if (!event || typeof event !== "object") return event;
+  if (event.type === "model.message.delta") return mergeTrueForgeDelta(event);
+  if (event.id) trueForgeRuntime.events.set(event.id, event);
+  return event;
+}
+
+function pendingTrueForgeCall(ref) {
+  const source = trueForgeRuntime.events.get(ref?.source_event_id);
+  if (!source || source.type !== "model.message") return null;
+  return (source.tool_calls || []).find((call) => call.id === ref.id) || null;
+}
+
+function showTrueForgeApproval() {
+  const refs = trueForgeRuntime.pendingApprovals.flatMap((pending) => pending.tool_calls || []);
+  const calls = refs.map(pendingTrueForgeCall).filter(Boolean);
+  const actions = calls.map((call) => trueForgeToolAction(trueForgeToolName(call))).filter(Boolean);
+  setRunState("complete");
+  setStep("act", "waiting");
+  completionMessage.hidden = false;
+  pauseButton.disabled = true;
+  stopTimer();
+  if (completionTitle) completionTitle.textContent = "Your approval is needed.";
+  if (completionCopy) completionCopy.textContent = actions.length
+    ? `The agent is ready to ${humanList(actions)}. Review the findings before allowing it to continue.`
+    : "The agent is ready to apply the reviewed changes. Review the findings before allowing it to continue.";
+  if (deleteActionButton) {
+    deleteActionButton.textContent = "Approve and continue";
+    deleteActionButton.disabled = false;
+  }
+  if (denyActionButton) {
+    denyActionButton.hidden = false;
+    denyActionButton.disabled = false;
+    denyActionButton.textContent = "Not yet";
+  }
+  if (completionNote) completionNote.textContent = "Nothing changes until approval.";
+  setDrawerApprovalVisible(true);
+  appendAudit("Waiting", "Approval is required before an irreversible change");
+  appendAgentMessage("The agent has paused before the irreversible step. Allow it to continue only after reviewing the measured changes.");
+  scrollConversation(completionMessage);
+}
+
+function showTrueForgeQuestion(pending) {
+  const refs = pending?.tool_calls || [];
+  const call = pendingTrueForgeCall(refs[0]);
+  let args = {};
+  try { args = JSON.parse(call?.function?.arguments || "{}"); } catch { /* use generic copy */ }
+  const options = Array.isArray(args.options) ? args.options.filter((option) => typeof option === "string" && option.trim()).slice(0, 2) : [];
+  trueForgeRuntime.pendingQuestions = [pending];
+  run.pendingQuestion = "trueforge";
+  setRunState("question");
+  identityQuestion.hidden = false;
+  identityQuestionTitle.textContent = args.question || "One detail is needed";
+  identityQuestionCopy.textContent = options.length ? "Choose an answer so the agent can continue." : "Answer in the message box so the agent can continue.";
+  identityAnswerYes.textContent = options[0] || "Continue";
+  identityAnswerNo.textContent = options[1] || "Answer later";
+  identityAnswerYes.hidden = !options[0];
+  identityAnswerNo.hidden = !options[1];
+  appendAudit("Waiting", "The agent asked for one detail");
+  scrollConversation(identityQuestion);
+}
+
+function showTrueForgeAuth() {
+  trueForgeRuntime.pendingAuth = trueForgeRuntime.pendingAuth || {};
+  run.pendingQuestion = "trueforge-auth";
+  setRunState("question");
+  setStep("search", "waiting");
+  identityQuestion.hidden = false;
+  identityQuestionTitle.textContent = "Authorize the connected source";
+  identityQuestionCopy.textContent = "Finish authorization in the connected service, then choose Continue. Nothing changes while access is being confirmed.";
+  identityAnswerYes.textContent = "Continue";
+  identityAnswerYes.hidden = false;
+  identityAnswerNo.hidden = true;
+  appendAudit("Needs you", "A connected source needs authorization");
+  scrollConversation(identityQuestion);
+}
+
+function handleTrueForgeEvent(rawEvent, sequenceNumber) {
+  const event = rememberTrueForgeEvent(rawEvent);
+  if (!event) return;
+  if (sequenceNumber !== undefined && sequenceNumber !== null && Number.isFinite(Number(sequenceNumber))) {
+    trueForgeRuntime.lastSequenceNumber = Number(sequenceNumber);
+    persistTrueForgeRuntime();
+  }
+  switch (event.type) {
+    case "turn.created":
+      trueForgeRuntime.turnId = event.turn_id || trueForgeRuntime.turnId;
+      trueForgeRuntime.pendingApprovals = [];
+      trueForgeRuntime.pendingQuestions = [];
+      run.pendingQuestion = null;
+      persistTrueForgeRuntime();
+      setRunState("reasoning");
+      setStep("understand", "active");
+      appendAudit("Started", "The privacy agent began a new turn");
+      break;
+    case "mcp.initialize":
+      appendAudit("Connected", "A connected source is ready");
+      break;
+    case "sandbox.created":
+      appendAudit("Protected", "A protected workspace is ready for the agent");
+      break;
+    case "thread.created": {
+      subagentList.hidden = false;
+      const slot = subagentPlan.find((candidate) => !trueForgeRuntime.threadSlots?.has(candidate.key));
+      trueForgeRuntime.threadSlots ||= new Map();
+      const key = slot?.key || `thread-${trueForgeRuntime.threadSlots.size}`;
+      trueForgeRuntime.threadSlots.set(key, event.thread_id);
+      if (slot) setSubagentState(slot.key, "active", "Working");
+      appendAudit("Delegated", event.title ? `Started ${event.title}` : "Started a focused source review");
+      break;
+    }
+    case "thread.done": {
+      const entry = [...(trueForgeRuntime.threadSlots || [])].find(([, threadId]) => threadId === event.thread_id);
+      if (entry) setSubagentState(entry[0], "done", "Reviewed");
+      appendAudit("Done", event.title ? `${event.title} finished` : "A focused source review finished");
+      break;
+    }
+    case "model.message": {
+      const text = trueForgeText(event.content);
+      if (event.thread_id === "main" && text) {
+        const node = trueForgeMessageNode(event.id);
+        node.paragraph.textContent = text;
+        scrollConversation();
+      }
+      for (const call of event.tool_calls || []) {
+        const name = trueForgeToolName(call);
+        appendAudit("Working", `The agent is ${trueForgeToolLabel(name)}`);
+        if (name === "execute_deletion") {
+          setStep("act", "active");
+          setRunState("executing");
+        } else if (name === "rehearse_deletion" || name === "snapshot_to_shadow") {
+          setStep("check", "active");
+          setRunState("rehearsing");
+        } else {
+          setStep("search", "active");
+          setRunState("searching");
+        }
+      }
+      break;
+    }
+    case "model.message.delta": {
+      const merged = trueForgeRuntime.events.get(event.id);
+      if (event.thread_id === "main" && merged) {
+        const text = trueForgeText(merged.content);
+        if (text) {
+          const node = trueForgeMessageNode(event.id);
+          node.paragraph.textContent = text;
+          scrollConversation();
+        }
+      }
+      break;
+    }
+    case "tool.response":
+      appendAudit("Received", "A connected source returned results");
+      break;
+    case "tool.approval_required":
+      trueForgeRuntime.pendingApprovals.push(event);
+      break;
+    case "tool.response_required":
+      showTrueForgeQuestion(event);
+      break;
+    case "mcp.auth_required":
+      trueForgeRuntime.pendingAuth = event;
+      appendAgentMessage("A connected source needs authorization before the agent can continue. Finish authorization in the connected service, then choose Continue here.");
+      showTrueForgeAuth();
+      break;
+    case "turn.done": {
+      const state = event.state || {};
+      if (state.status === "error") {
+        showServiceError(state.message || "The agent could not complete this turn.");
+        appendAudit("Error", state.message || "The agent could not complete this turn.");
+        break;
+      }
+      if (state.status === "cancelled") {
+        setRunState("error");
+        appendAudit("Stopped", "The request was stopped before completion");
+        appendAgentMessage("The request was stopped. Nothing else will run until a new request is started.");
+        break;
+      }
+      const required = Array.isArray(state.required_actions) ? state.required_actions : [];
+      const approvals = required.filter((item) => item.type === "tool.approval_required");
+      const questions = required.filter((item) => item.type === "tool.response_required");
+      const auth = required.find((item) => item.type === "mcp.auth_required");
+      if (approvals.length) {
+        trueForgeRuntime.pendingApprovals = approvals;
+        showTrueForgeApproval();
+        break;
+      }
+      if (questions.length) {
+        showTrueForgeQuestion(questions[0]);
+        break;
+      }
+      if (auth) {
+        trueForgeRuntime.pendingAuth = auth;
+        showTrueForgeAuth();
+        break;
+      }
+      const output = trueForgeText(state.output?.content);
+      if (output && !trueForgeRuntime.currentMessageNodes.has(state.output?.id)) appendAgentMessage(output);
+      trueForgeRuntime.pendingApprovals = [];
+      trueForgeRuntime.pendingQuestions = [];
+      run.pendingQuestion = null;
+      setStep("check", "complete");
+      setStep("act", "complete");
+      setRunState("complete");
+      completionMessage.hidden = false;
+      pauseButton.disabled = true;
+      stopTimer();
+      if (completionTitle) completionTitle.textContent = "The agent finished.";
+      if (completionCopy) completionCopy.textContent = output || "The agent completed the request. Review the activity and connected records.";
+      if (deleteActionButton) {
+        deleteActionButton.hidden = true;
+        deleteActionButton.disabled = true;
+      }
+      if (denyActionButton) denyActionButton.hidden = true;
+      if (completionNote) completionNote.textContent = "The session is saved in TrueForge.";
+      appendAudit("Done", "The agent completed the request");
+      scrollConversation(completionMessage);
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+async function runTrueForgeTurn(input, generation) {
+  if (!trueForgeRuntime.sessionId) throw new Error("The agent session is not available.");
+  trueForgeRuntime.streamController?.abort();
+  trueForgeRuntime.streamController = new AbortController();
+  // A new turn gets a new id. Clear the previous id before opening the stream
+  // so a failure before `turn.created` cannot accidentally reconnect to an
+  // older, already-completed turn.
+  trueForgeRuntime.turnId = null;
+  persistTrueForgeRuntime();
+  try {
+    const consume = (action, payload) => trueForgeStream(action, payload, (event, sequence) => {
+      if (generation !== run.generation) return;
+      handleTrueForgeEvent(event, sequence);
+    }, trueForgeRuntime.streamController.signal);
+    try {
+      await consume("turn", { sessionId: trueForgeRuntime.sessionId, input });
+    } catch (error) {
+      // TrueForge keeps the running turn server-side. If the browser or proxy
+      // drops the SSE connection, resume from the last event rather than
+      // creating a duplicate turn or asking the operator to retry blindly.
+      if (error?.name === "AbortError" || generation !== run.generation || !trueForgeRuntime.turnId) throw error;
+      appendAudit("Reconnecting", "The agent session is still running; restoring the live activity");
+      await consume("subscribe", {
+        sessionId: trueForgeRuntime.sessionId,
+        turnId: trueForgeRuntime.turnId,
+        afterSequenceNumber: trueForgeRuntime.lastSequenceNumber,
+      });
+    }
+  } finally {
+    trueForgeRuntime.streamController = null;
+  }
+}
+
+async function startTrueForgeMission(prompt) {
+  resetMission({ keepPrompt: true });
+  run.mode = "trueforge";
+  run.generation += 1;
+  const generation = run.generation;
+  homePrompt.value = "";
+  resizeTextarea(homePrompt);
+  missionTitle.textContent = titleFromPrompt(prompt);
+  userMissionCopy.textContent = prompt;
+  setView("agent");
+  setWorkspaceStatus("Agent connected", "TrueForge is running this request", "Agent connected");
+  setRunState("reasoning");
+  activityToggle.setAttribute("aria-expanded", "true");
+  activityBody.hidden = false;
+  pauseButton.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 4-8 4Z" /></svg><span>Stop</span>';
+  startTimer();
+  appendAudit("Started", "Sending the request to the privacy agent");
+  try {
+    const created = await trueForgeJson("create");
+    const session = created?.data;
+    if (!session?.id) throw new Error("TrueForge did not create a session.");
+    clearTrueForgeSession();
+    trueForgeRuntime.sessionId = session.id;
+    trueForgeRuntime.agentName = session.agent?.name || TRUEFORGE_AGENT_NAME;
+    persistTrueForgeRuntime();
+    await runTrueForgeTurn([{ type: "user.message", content: prompt }], generation);
+  } catch (error) {
+    if (generation !== run.generation || error?.name === "AbortError") return;
+    console.error(error);
+    showServiceError(error.message || "The agent runtime could not complete this request.");
+    appendAudit("Error", error.message || "The agent runtime could not complete this request.");
+  }
+}
+
+async function resumeTrueForgeApproval(status) {
+  if (run.mode !== "trueforge" || !trueForgeRuntime.pendingApprovals.length || !trueForgeRuntime.sessionId) return;
+  const generation = run.generation;
+  const approvals = [];
+  for (const pending of trueForgeRuntime.pendingApprovals) {
+    for (const ref of pending.tool_calls || []) {
+      approvals.push({
+        type: "user.tool_approval",
+        thread_id: pending.thread_id,
+        tool_call_id: ref.id,
+        approval: status === "allow" ? { status: "allow" } : { status: "deny", reason: "The operator chose not to continue." },
+      });
+    }
+  }
+  if (!approvals.length) return;
+  if (deleteActionButton) {
+    deleteActionButton.disabled = true;
+    deleteActionButton.textContent = status === "allow" ? "Continuing…" : "Stopping…";
+  }
+  if (denyActionButton) denyActionButton.disabled = true;
+  if (status === "allow") {
+    setStep("act", "active");
+    setRunState("executing");
+    appendAudit("Approved", "Approval sent to the agent");
+    appendAgentMessage("Approval received. The agent is continuing with the reviewed change.");
+  } else {
+    appendAudit("Denied", "The irreversible change was not approved");
+    appendAgentMessage("The change was not approved. The agent will stop before the irreversible step.");
+  }
+  identityQuestion.hidden = true;
+  completionMessage.hidden = true;
+  setDrawerApprovalVisible(false);
+  trueForgeRuntime.pendingApprovals = [];
+  try {
+    await runTrueForgeTurn(approvals, generation);
+  } catch (error) {
+    if (generation !== run.generation || error?.name === "AbortError") return;
+    showServiceError(error.message || "The agent could not resume this request.");
+  }
+}
+
+async function respondToTrueForgeQuestion(content) {
+  const pending = trueForgeRuntime.pendingQuestions[0];
+  if (run.mode !== "trueforge" || !pending || !trueForgeRuntime.sessionId) return;
+  const ref = pending.tool_calls?.[0];
+  if (!ref) return;
+  const generation = run.generation;
+  appendUserMessage(content);
+  identityQuestion.hidden = true;
+  trueForgeRuntime.pendingQuestions = [];
+  run.pendingQuestion = null;
+  appendAudit("Answered", "The agent received the requested detail");
+  setRunState("reasoning");
+  try {
+    await runTrueForgeTurn([{
+      type: "user.tool_response",
+      thread_id: pending.thread_id,
+      tool_call_id: ref.id,
+      content,
+    }], generation);
+  } catch (error) {
+    if (generation !== run.generation || error?.name === "AbortError") return;
+    showServiceError(error.message || "The agent could not resume this request.");
+  }
+}
+
+async function resumeTrueForgeAuth() {
+  if (run.mode !== "trueforge" || run.pendingQuestion !== "trueforge-auth" || !trueForgeRuntime.sessionId) return;
+  const generation = run.generation;
+  identityQuestion.hidden = true;
+  trueForgeRuntime.pendingAuth = null;
+  run.pendingQuestion = null;
+  appendAudit("Authorized", "Resuming after connected-source authorization");
+  appendAgentMessage("Authorization confirmed. The agent is resuming the request.");
+  setRunState("reasoning");
+  try {
+    // TrueForge requires an empty input after mcp.auth_required. A user.message
+    // here would be rejected because it would mix with the auth continuation.
+    await runTrueForgeTurn([], generation);
+  } catch (error) {
+    if (generation !== run.generation || error?.name === "AbortError") return;
+    showServiceError(error.message || "The agent could not resume after authorization.");
+  }
+}
+
+async function sendTrueForgeMessage(message) {
+  if (run.mode !== "trueforge" || !trueForgeRuntime.sessionId) return;
+  const generation = run.generation;
+  appendUserMessage(message);
+  setRunState("reasoning");
+  appendAudit("Updated", "The agent received a new instruction");
+  try {
+    await runTrueForgeTurn([{ type: "user.message", content: message }], generation);
+  } catch (error) {
+    if (generation !== run.generation || error?.name === "AbortError") return;
+    showServiceError(error.message || "The agent could not update this request.");
+  }
+}
+
+async function shouldUseTrueForge() {
+  if (!trueForgeRuntime.ready) await checkTrueForge({ quiet: true });
+  // If the runtime is reachable but the named agent is missing, stay on the
+  // real path and surface the provisioning error instead of silently showing
+  // the local fallback as if it were a live agent run.
+  return trueForgeRuntime.ready || trueForgeRuntime.available;
+}
+
 function scrollConversation(target) {
   requestAnimationFrame(() => {
     if (target) {
@@ -1336,8 +2006,15 @@ function stopTimer() {
 }
 
 function resetMission(options = {}) {
-  const wasPreview = run.mode === "preview";
-  if (typeof run.previewQuestionResolver === "function") run.previewQuestionResolver(null);
+  const wasTrueForge = run.mode === "trueforge";
+  const previousTrueForgeSession = trueForgeRuntime.sessionId;
+  if (wasTrueForge) {
+    trueForgeRuntime.streamController?.abort();
+    if (previousTrueForgeSession && !["complete", "error", "indeterminate"].includes(run.state)) {
+      trueForgeJson("cancel", { sessionId: previousTrueForgeSession }).catch(() => {});
+    }
+    clearTrueForgeSession();
+  }
   run.generation += 1;
   run.mode = "live";
   run.paused = false;
@@ -1345,9 +2022,6 @@ function resetMission(options = {}) {
   run.pendingQuestion = null;
   run.liveData = null;
   run.evidence = [];
-  run.previewQuestionResolved = false;
-  run.previewQuestionResolver = null;
-  run.previewApproved = false;
   run.liveReviewReady = false;
   run.executionIndeterminate = false;
   body.classList.remove("is-paused", "is-complete");
@@ -1376,9 +2050,16 @@ function resetMission(options = {}) {
   if (identityQuestionCopy) identityQuestionCopy.textContent = "Two close matches were found. Choose one to keep checking.";
   if (identityAnswerYes) identityAnswerYes.textContent = "Yes, that's the right match";
   if (identityAnswerNo) identityAnswerNo.textContent = "No, that's not the right match";
+  if (identityAnswerYes) identityAnswerYes.hidden = false;
+  if (identityAnswerNo) identityAnswerNo.hidden = false;
   if (deleteActionButton) {
     deleteActionButton.textContent = "Delete what you can";
     deleteActionButton.disabled = false;
+    deleteActionButton.hidden = false;
+  }
+  if (denyActionButton) {
+    denyActionButton.hidden = true;
+    denyActionButton.disabled = false;
   }
   if (completionNote) completionNote.textContent = "Nothing changes until you approve it.";
   if (completionTitle) completionTitle.textContent = "Your review is ready.";
@@ -1397,7 +2078,6 @@ function resetMission(options = {}) {
   if (primaryIdentityName) primaryIdentityName.textContent = "Primary profile";
   if (primaryIdentityType) primaryIdentityType.textContent = "Primary";
   if (primaryIdentityDetail) primaryIdentityDetail.textContent = "Ready to protect";
-  if (wasPreview) setWorkspaceStatus("Private workspace", "Your information stays under your control.", "Private workspace");
   if (!options.keepPrompt) agentPrompt.value = "";
   setRunState("idle");
   stopTimer();
@@ -1411,149 +2091,17 @@ function titleFromPrompt(prompt) {
   return "Clear personal information";
 }
 
-function waitForPreviewDecision(generation) {
-  return new Promise((resolve) => {
-    run.previewQuestionResolver = (answer) => {
-      run.previewQuestionResolver = null;
-      resolve(generation === run.generation ? answer : null);
-    };
-  });
-}
-
-function markPreviewQuestion(answer, { recordMessage = true } = {}) {
-  if (run.mode !== "preview" || run.previewQuestionResolved) return;
-  run.previewQuestionResolved = true;
-  identityQuestion.hidden = true;
-  if (answer === "yes") {
-    if (recordMessage) appendUserMessage("Confirm this match.");
-    appendAudit("Confirmed", "Match confirmed");
-  } else {
-    if (recordMessage) appendUserMessage("Continue without confirming.");
-    appendAudit("Continued", "Results shown without confirming the match");
-  }
-  if (typeof run.previewQuestionResolver === "function") run.previewQuestionResolver(answer);
-}
-
 function humanList(items) {
   if (!items.length) return "";
   if (items.length === 1) return items[0];
   return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
 }
 
-async function startGuidedPreview(cleanPrompt) {
-  resetMission({ keepPrompt: true });
-  run.mode = "preview";
-  run.generation += 1;
-  const generation = run.generation;
-  homePrompt.value = "";
-  resizeTextarea(homePrompt);
-  missionTitle.textContent = "Privacy review";
-  userMissionCopy.textContent = GUIDED_PREVIEW.requestLabel;
-  setView("agent");
-  setWorkspaceStatus("Privacy review", "Nothing changes until approval.", "Privacy review");
-  setRunState("reasoning");
-  activityToggle.setAttribute("aria-expanded", "true");
-  activityBody.hidden = false;
-  startTimer();
-  appendAudit("Started", "Request started");
-  appendAgentMessage(`Searching public websites for ${GUIDED_PREVIEW.name}.`);
-
-  if (!(await waitFor(700, generation))) return;
-  setStep("understand", "complete");
-  setStep("search", "active");
-  subagentList.hidden = false;
-  setRunState("question");
-  identityQuestionTitle.textContent = "Confirm this match to continue";
-  identityQuestionCopy.textContent = "A close match was found. Confirm it to keep the search focused before any change.";
-  identityAnswerYes.textContent = "Confirm match";
-  identityAnswerNo.textContent = "Continue without confirming";
-  identityQuestion.hidden = false;
-  appendAudit("Waiting", "A match is ready for your choice");
-  scrollConversation(identityQuestion);
-
-  const previewAnswer = await waitForPreviewDecision(generation);
-  if (!previewAnswer) return;
-  appendAgentMessage(previewAnswer === "yes"
-    ? `Match confirmed. Checking ${GUIDED_PREVIEW.sources.length} websites for ${humanList(GUIDED_PREVIEW.information)}.`
-    : `Continuing without confirming the match. Checking ${GUIDED_PREVIEW.sources.length} websites.`);
-
-  setRunState("searching");
-  subagentList.hidden = false;
-  appendAudit("Search", "Reviewing public sources");
-  for (const [index, agent] of subagentPlan.entries()) {
-    setSubagentState(agent.key, "active");
-    if (!(await waitFor(280, generation))) return;
-    setSubagentState(agent.key, "done", "Reviewed");
-    if (index < GUIDED_PREVIEW.sources.length) {
-      const source = GUIDED_PREVIEW.sources[index];
-      appendAgentMessage(`Reviewed ${source.website}. ${source.finding}`);
-    } else {
-      appendAgentMessage(`Cross-check complete. The same name appears across ${GUIDED_PREVIEW.sources.length} websites.`);
-    }
-  }
-  run.evidence = GUIDED_PREVIEW.sources.map((source) => ({ ...source }));
-  renderRealEvidence(run.evidence);
-  // Internal fixture label "Four example sources reviewed" is retained for the test contract; customer-facing copy stays discreet.
-  appendAudit("Search", "Four public sources reviewed");
-  appendAgentMessage(`Found ${GUIDED_PREVIEW.impact.found} records for ${GUIDED_PREVIEW.name} across ${GUIDED_PREVIEW.sources.length} websites.`);
-  appendAgentMessage(`Information found: ${humanList(GUIDED_PREVIEW.information)}.`);
-
-  setStep("search", "complete");
-  setStep("check", "active");
-  setRunState("rehearsing");
-  impactState.textContent = "Reviewing";
-  impactCopy.textContent = "Potential changes are being prepared for review.";
-  appendAudit("Review", "Potential changes identified");
-  appendAgentMessage("Separating information that can be removed from records that should stay available for verification.");
-  if (!(await waitFor(900, generation))) return;
-
-  setImpactValues([
-    GUIDED_PREVIEW.impact.found,
-    GUIDED_PREVIEW.impact.remove,
-    GUIDED_PREVIEW.impact.update,
-    GUIDED_PREVIEW.impact.review,
-  ]);
-  impactState.textContent = "Ready for review";
-  impactCopy.textContent = `Found ${GUIDED_PREVIEW.impact.found} records across ${GUIDED_PREVIEW.sources.length} websites. ${GUIDED_PREVIEW.impact.remove} items would be removed and ${GUIDED_PREVIEW.impact.update} updates requested after approval.`;
-  const safetyResult = $(".safety-result", detailsDrawer);
-  if (safetyResult) safetyResult.hidden = false;
-  const technicalNote = $(".technical-note", detailsDrawer);
-  if (technicalNote) technicalNote.textContent = "Nothing changes until approval.";
-  appendAudit("Review", "Proposed changes are ready");
-  appendAgentMessage(`What would be removed after approval: ${humanList(GUIDED_PREVIEW.proposedRemovals)}.`);
-  appendAgentMessage(`Updates ready for review: ${humanList(GUIDED_PREVIEW.proposedUpdates)}.`);
-  setStep("check", "complete");
-  setStep("act", "waiting");
-  const actionStep = $('[data-run-step="act"]');
-  if (actionStep) {
-    const actionLabel = $("strong", actionStep);
-    const actionDetail = $("small", actionStep);
-    if (actionLabel) actionLabel.textContent = "Approve";
-    if (actionDetail) actionDetail.textContent = "No changes happen without approval.";
-  }
-  setPreviewIdentity();
-  setRunState("complete");
-  completionMessage.hidden = false;
-  pauseButton.disabled = true;
-  stopTimer();
-  if (completionTitle) completionTitle.textContent = "Findings are ready.";
-  if (completionCopy) completionCopy.textContent = `${GUIDED_PREVIEW.name} appears across ${GUIDED_PREVIEW.sources.length} websites. Review the findings, then approve the proposed changes if everything looks right.`;
-  if (deleteActionButton) deleteActionButton.textContent = "Approve changes";
-  if (completionNote) completionNote.textContent = "Nothing changes until approval.";
-  appendAudit("Ready", "Approval is required before any change");
-  appendAgentMessage("Review complete. The results show what was found, what could change, and where approval is required.");
-  setDrawerApprovalVisible(true);
-  scrollConversation(completionMessage);
-  const sourceDetails = $("#source-details");
-  if (sourceDetails) sourceDetails.open = true;
-  openDetails();
-}
-
 async function startMission(prompt) {
   const cleanPrompt = prompt.trim();
   if (!cleanPrompt) return;
-  if (isGuidedPreviewPrompt(cleanPrompt)) {
-    await startGuidedPreview(cleanPrompt);
+  if (await shouldUseTrueForge()) {
+    await startTrueForgeMission(cleanPrompt);
     return;
   }
   resetMission({ keepPrompt: true });
@@ -1828,6 +2376,8 @@ function finishLiveReview() {
       : "The proposed changes are ready. Re-enable approval permission before applying anything.";
   }
   if (deleteActionButton) deleteActionButton.textContent = standingAuthorization.erase ? "Approve and apply" : "Approval permission required";
+  if (deleteActionButton) deleteActionButton.hidden = false;
+  if (denyActionButton) denyActionButton.hidden = true;
   if (completionNote) completionNote.textContent = "Nothing changes until you approve it.";
   if (firstReadyTransition) {
     appendAudit("Ready", "Approval is required before any change");
@@ -1861,6 +2411,16 @@ function waitFor(duration, generation) {
 
 function togglePause() {
   if (run.state === "complete" || run.state === "error") return;
+  if (run.mode === "trueforge") {
+    const sessionId = trueForgeRuntime.sessionId;
+    trueForgeRuntime.streamController?.abort();
+    pauseButton.disabled = true;
+    if (sessionId) trueForgeJson("cancel", { sessionId }).catch(() => {});
+    setRunState("error");
+    appendAudit("Stopped", "The agent was stopped before completion");
+    appendAgentMessage("The agent was stopped. Nothing else will run until a new request is started.");
+    return;
+  }
   run.paused = !run.paused;
   body.classList.toggle("is-paused", run.paused);
   agentPresence.setPaused(run.paused);
@@ -1894,58 +2454,70 @@ function resizeTextarea(textarea) {
 async function testConnector() {
   const urlInput = $("#connector-url");
   const tokenInput = $("#connector-token");
+  const trueForgeTokenInput = $("#trueforge-ui-token");
   const testButton = $("#connector-test");
   const rawUrl = urlInput?.value.trim() || "";
   const token = tokenInput?.value.trim() || "";
-  if (!rawUrl) {
-    connectorResult.textContent = "Enter the service address first.";
-    urlInput?.focus();
+  const trueForgeToken = trueForgeTokenInput?.value.trim() || "";
+  const hasMcpConfig = Boolean(rawUrl && token);
+  if (trueForgeToken) sessionStorage.setItem("blast_trueforge_ui_token", trueForgeToken);
+  if (!hasMcpConfig && rawUrl !== "" && token === "") {
+    connectorResult.textContent = "Add the data-service access token, or leave both data-service fields blank to use the configured agent runtime.";
+    tokenInput?.focus();
     return;
   }
-  if (!token) {
-    connectorResult.textContent = "Enter the access token provided by the running service.";
-    tokenInput?.focus();
+  if (!hasMcpConfig && rawUrl === "" && token !== "") {
+    connectorResult.textContent = "Add the data-service address, or clear both data-service fields to use the configured agent runtime.";
+    urlInput?.focus();
     return;
   }
   testButton.disabled = true;
   testButton.textContent = "Testing…";
-  connectorResult.innerHTML = '<span aria-hidden="true"></span>Checking the service and approval gate.';
+  connectorResult.innerHTML = '<span aria-hidden="true"></span>Checking connected services and the agent runtime.';
 
-  let healthUrl;
   try {
-    const parsed = new URL(rawUrl);
-    healthUrl = parsed.origin + "/healthz";
-  } catch {
-    connectorResult.textContent = "Enter a complete URL, including http:// or https://.";
-    testButton.disabled = false;
-    testButton.textContent = "Test connection";
-    return;
-  }
-
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 1800);
-  try {
-    const response = await fetch(healthUrl, { signal: controller.signal });
-    if (!response.ok) throw new Error("unhealthy");
-    await initializeMcp(rawUrl, token);
-    const listed = await mcpCall(rawUrl, token, "tools/list", {});
-    const tools = Array.isArray(listed?.result?.tools) ? listed.result.tools : [];
-    const deletionTool = tools.find((tool) => tool.name === "execute_deletion");
-    if (!deletionTool || deletionTool.annotations?.destructiveHint !== true) {
-      throw new Error("The approval gate is not advertised by this service");
+    let mcpConnected = false;
+    if (hasMcpConfig) {
+      let healthUrl;
+      try {
+        const parsed = new URL(rawUrl);
+        healthUrl = parsed.origin + "/healthz";
+      } catch {
+        throw new Error("Enter a complete URL, including http:// or https://.");
+      }
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 1800);
+      try {
+        const response = await fetch(healthUrl, { signal: controller.signal });
+        if (!response.ok) throw new Error("unhealthy");
+        await initializeMcp(rawUrl, token);
+        const listed = await mcpCall(rawUrl, token, "tools/list", {});
+        const tools = Array.isArray(listed?.result?.tools) ? listed.result.tools : [];
+        const deletionTool = tools.find((tool) => tool.name === "execute_deletion");
+        if (!deletionTool || deletionTool.annotations?.destructiveHint !== true) {
+          throw new Error("The approval gate is not advertised by this service");
+        }
+        mcpConnected = true;
+      } finally {
+        window.clearTimeout(timeout);
+      }
     }
+    const runtime = await checkTrueForge({ quiet: false });
+    if (!mcpConnected && !runtime.ready) throw new Error("No connected data service or provisioned agent runtime was found.");
     persistConnectorConfig();
-    connectorResult.innerHTML =
-      '<span aria-hidden="true"></span>Connected. The approval gate is ready.';
+    connectorResult.innerHTML = mcpConnected && runtime.ready
+      ? '<span aria-hidden="true"></span>Connected. The agent runtime and approval gate are ready.'
+      : runtime.ready
+        ? '<span aria-hidden="true"></span>Connected. New requests will run through the agent runtime.'
+        : '<span aria-hidden="true"></span>Connected. The data service and approval gate are ready.';
   } catch (error) {
     const message = error?.name === "AbortError"
       ? "The service took too long to respond. Try again when it is running."
       : error?.message?.includes("approval gate")
         ? "Connected, but the approval gate is not configured."
-        : "Couldn't reach that address. Check the service and try again.";
+        : error?.message || "Couldn't reach that address. Check the service and try again.";
     connectorResult.innerHTML = `<span aria-hidden="true"></span>${message}`;
   } finally {
-    window.clearTimeout(timeout);
     testButton.disabled = false;
     testButton.textContent = "Test connection";
   }
@@ -1953,35 +2525,9 @@ async function testConnector() {
 
 async function handleDeleteAction({ recordMessage = true } = {}) {
   if (run.state !== "complete") return;
-  if (run.mode === "preview") {
-    if (run.previewApproved) return;
-    run.previewApproved = true;
-    if (recordMessage) appendUserMessage("Approve changes.");
-    appendAgentMessage(`Approved. In a live request, ${humanList(GUIDED_PREVIEW.proposedRemovals)} would be removed. No connected records were changed.`);
-    appendAudit("Approved", "Changes approved. No connected records changed.");
-    impactState.textContent = "Approved";
-    impactCopy.textContent = "No connected records were changed.";
-    setStep("act", "complete");
-    const actionStep = $('[data-run-step="act"]');
-    if (actionStep) {
-      const actionLabel = $("strong", actionStep);
-      const actionDetail = $("small", actionStep);
-      if (actionLabel) actionLabel.textContent = "Approved";
-      if (actionDetail) actionDetail.textContent = "No connected records changed.";
-    }
-    if (deleteActionButton) {
-      deleteActionButton.textContent = "Complete";
-      deleteActionButton.disabled = true;
-    }
-    if (completionTitle) completionTitle.textContent = "Changes approved.";
-    if (completionCopy) completionCopy.textContent = "The review is complete. No connected records were changed.";
-    if (completionNote) completionNote.textContent = "Nothing changed in this run.";
-    if (drawerApprovalTitle) drawerApprovalTitle.textContent = "Changes approved";
-    if (drawerApprovalCopy) drawerApprovalCopy.textContent = "No connected records changed.";
-    if (drawerApproveButton) {
-      drawerApproveButton.textContent = "Complete";
-      drawerApproveButton.disabled = true;
-    }
+  if (run.mode === "trueforge") {
+    if (recordMessage) appendUserMessage("Approve and continue.");
+    await resumeTrueForgeApproval("allow");
     return;
   }
   const liveData = run.liveData;
@@ -2106,7 +2652,6 @@ async function handleDeleteAction({ recordMessage = true } = {}) {
 }
 
 enterAgentButton.addEventListener("click", enterAgent);
-if (guidedPreviewButton) guidedPreviewButton.addEventListener("click", () => startGuidedPreview(GUIDED_PREVIEW_PHRASE));
 
 homeForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -2118,10 +2663,31 @@ agentForm.addEventListener("submit", (event) => {
   const message = agentPrompt.value.trim();
   if (!message) return;
   const lower = message.toLowerCase();
-  if (isGuidedPreviewPrompt(message)) {
+  if (run.mode === "trueforge") {
     agentPrompt.value = "";
     resizeTextarea(agentPrompt);
-    startMission(message);
+    const hasApproval = trueForgeRuntime.pendingApprovals.length > 0;
+    const wantsAllow = /\b(?:approve|allow|continue|yes)\b/i.test(message);
+    const wantsDeny = /\b(?:deny|decline|reject|not yet|stop|no)\b/i.test(message);
+    if (hasApproval && (wantsAllow || wantsDeny)) {
+      appendUserMessage(message);
+      resumeTrueForgeApproval(wantsAllow ? "allow" : "deny");
+      return;
+    }
+    if (run.pendingQuestion === "trueforge") {
+      respondToTrueForgeQuestion(message);
+      return;
+    }
+    if (run.pendingQuestion === "trueforge-auth") {
+      appendUserMessage(message);
+      appendAgentMessage("Finish authorization in the connected service, then choose Continue above.");
+      return;
+    }
+    if (hasApproval) {
+      appendAgentMessage("Choose Approve and continue or Not yet before sending another instruction.");
+      return;
+    }
+    sendTrueForgeMessage(message);
     return;
   }
   const isApprovalMessage = lower.includes("approve") && run.state === "complete";
@@ -2130,23 +2696,6 @@ agentForm.addEventListener("submit", (event) => {
     agentPrompt.value = "";
     resizeTextarea(agentPrompt);
     handleDeleteAction({ recordMessage: false });
-    return;
-  }
-  if (run.mode === "preview" && run.state === "question") {
-    const previewChoice = lower.includes("skip") || lower.includes("no")
-      ? "no"
-      : lower.includes("use") || lower.includes("yes")
-        ? "yes"
-        : null;
-    agentPrompt.value = "";
-    resizeTextarea(agentPrompt);
-    if (previewChoice) {
-      appendUserMessage(message);
-      markPreviewQuestion(previewChoice, { recordMessage: false });
-    } else {
-      appendUserMessage(message);
-      appendAgentMessage("Choose Confirm match or Continue without confirming above.");
-    }
     return;
   }
   appendUserMessage(message);
@@ -2202,8 +2751,12 @@ if (serviceRetry) serviceRetry.addEventListener("click", () => {
 $$("[data-identity-answer]").forEach((button) => {
   button.addEventListener("click", () => {
     const answer = button.dataset.identityAnswer;
-    if (run.mode === "preview") {
-      markPreviewQuestion(answer);
+    if (run.mode === "trueforge" && run.pendingQuestion === "trueforge") {
+      respondToTrueForgeQuestion(button.textContent.trim());
+      return;
+    }
+    if (run.mode === "trueforge" && run.pendingQuestion === "trueforge-auth") {
+      if (answer === "yes") resumeTrueForgeAuth();
       return;
     }
     if (answer === "yes") {
@@ -2310,12 +2863,16 @@ document.addEventListener("keydown", (event) => {
 
 const deleteActionBtn = $("#delete-action");
 if (deleteActionBtn) deleteActionBtn.addEventListener("click", handleDeleteAction);
+if (denyActionButton) denyActionButton.addEventListener("click", () => {
+  if (run.mode === "trueforge") resumeTrueForgeApproval("deny");
+});
 if (drawerApproveButton) drawerApproveButton.addEventListener("click", () => handleDeleteAction());
 
 renderRealEvidence([]);
 updatePermissionsSummary();
 setRunState("idle");
 setHomePanel("start", { skipView: true });
+void checkTrueForge({ quiet: false });
 // Keep the horse animation as the front door on every page load. The handoff
 // into the workspace is intentionally session-local and is never persisted.
 setView("landing");

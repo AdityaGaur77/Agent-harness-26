@@ -3,13 +3,14 @@ import { readFile } from "node:fs/promises";
 const root = new URL("..", import.meta.url);
 const read = (file) => readFile(new URL(file, root), "utf8");
 const readBinary = (file) => readFile(new URL(file, root));
-const [html, css, js, pkg, horseFrames, exaApi] = await Promise.all([
+const [html, css, js, pkg, horseFrames, exaApi, trueForgeApi] = await Promise.all([
   read("index.html"),
   read("styles.css"),
   read("app.js"),
   read("package.json"),
   Promise.all(Array.from({ length: 11 }, (_, index) => readBinary(`assets/horse/frame-${String(index + 1).padStart(2, "0")}.webp`))),
   read("../api/exa-search.js"),
+  read("../api/trueforge-session.js"),
 ]);
 
 const all = `${html}\n${css}\n${js}`;
@@ -32,14 +33,6 @@ const irrelevantChatFeatures = [
   "gpt-store",
 ];
 const firstPersonPattern = /\b(?:I(?:['’](?:m|ll|d|ve)|\b)|me|my|mine|we(?:['’](?:re|ve|ll|d)|\b)|us|our|ours)\b/;
-const previewFunctionStart = js.indexOf("async function startGuidedPreview");
-const liveFunctionStart = js.indexOf("async function startMission");
-const guidedPreviewBody = previewFunctionStart >= 0 && liveFunctionStart > previewFunctionStart
-  ? js.slice(previewFunctionStart, liveFunctionStart)
-  : "";
-const deleteHandlerStart = js.indexOf("async function handleDeleteAction");
-const deleteHandlerBody = deleteHandlerStart >= 0 ? js.slice(deleteHandlerStart) : "";
-
 const assertions = [
   ["main landmark", /<main[^>]+id="main-content"/.test(html)],
   ["one page heading", (html.match(/<h1\b/g) || []).length === 1],
@@ -73,14 +66,9 @@ const assertions = [
   ["customer copy contains no fixture data", !html.includes("Demo only") && !html.includes("Synthetic") && !html.includes("customer 4471") && !html.includes("example.test") && html.includes("Nothing changes without your approval.")],
   ["customer-facing source omits internal references", !/ascii|synthetic|demo|customer 4471|example\.test|nashville|jane q/i.test(`${html}\n${css}`)],
   ["customer-facing source uses no first person", !firstPersonPattern.test(`${html}\n${css}\n${js}`)],
-  ["guided preview trigger is normalized", js.includes('GUIDED_PREVIEW_PHRASE = "find information on jane austin"') && js.includes("normalizePrompt") && js.includes("isGuidedPreviewPrompt") && js.includes("if (isGuidedPreviewPrompt(cleanPrompt))") && js.includes("if (isGuidedPreviewPrompt(message))")],
-  ["guided preview stays off the live path", guidedPreviewBody.includes("GUIDED_PREVIEW.sources") && !guidedPreviewBody.includes("mcpTool") && !guidedPreviewBody.includes("exaSearch")],
-  ["preview approval cannot delete", deleteHandlerBody.includes('if (run.mode === "preview")') && deleteHandlerBody.indexOf('if (run.mode === "preview")') < deleteHandlerBody.indexOf("const liveData = run.liveData") && deleteHandlerBody.includes("No connected records were changed")],
-  ["guided preview shows the product story", js.includes("Four example sources reviewed") && js.includes("Approval is required before any change") && js.includes("setPreviewIdentity")],
-  ["guided preview narrates findings", ["Information found:", "What would be removed after approval:", "Updates ready for review:", "Review complete."].every((value) => js.includes(value))],
-  ["guided preview hides its trigger", !html.includes("Find information on Jane Austin") && guidedPreviewBody.includes("GUIDED_PREVIEW.requestLabel") && !guidedPreviewBody.includes("userMissionCopy.textContent = cleanPrompt") && guidedPreviewBody.includes("homePrompt.value = \"\"")],
-  ["preview completion copy is dynamic", html.includes('id="completion-title"') && html.includes('id="completion-copy"') && js.includes("completionTitle") && js.includes("completionCopy")],
-  ["preview sources name websites", ["PeopleFinders (peoplefinders.com)", "Whitepages (whitepages.com)", "Spokeo (spokeo.com)", "BeenVerified (beenverified.com)"].every((value) => js.includes(value)) && js.includes('sourceUnit = tablesWithData.some((row) => row.website)') && js.includes("source.website")],
+  ["requests use the live agent path", js.includes("async function startTrueForgeMission") && js.includes("await startTrueForgeMission(cleanPrompt)")],
+  ["no simulated request path is shipped", !html.includes("guided-preview") && !js.includes("GUIDED_PREVIEW") && !js.includes("startGuidedPreview") && !js.includes("previewApproved")],
+  ["completion copy is dynamic", html.includes('id="completion-title"') && html.includes('id="completion-copy"') && js.includes("completionTitle") && js.includes("completionCopy")],
   ["source findings identify where they came from", js.includes("Found at") && js.includes("row.website ?") && js.includes("resultDetail")],
   ["source findings get a larger reading area", css.includes("#source-details[open] .evidence-list article") && css.includes("min-height: 82px") && css.includes("font-size: 13px")],
   ["agent status announced", html.includes('role="status"') && html.includes('aria-live="polite"')],
@@ -101,6 +89,13 @@ const assertions = [
   ["no runtime dependencies", !JSON.parse(pkg).dependencies && !JSON.parse(pkg).devDependencies],
   ["web search credential stays server-side", !js.includes("EXA_API_KEY") && js.includes("/api/exa-search")],
   ["web search proxy is bounded", exaApi.includes("EXA_PROXY_TOKEN") && exaApi.includes("UPSTASH_REDIS_REST_URL") && exaApi.includes("RATE_LIMIT_SCRIPT") && exaApi.includes("EVAL") && exaApi.includes("pipeline") && exaApi.includes("NODE_ENV") && exaApi.includes("MAX_BODY_BYTES") && exaApi.includes("authorization") && exaApi.includes("rate_limited")],
+  ["TrueForge stays behind a server proxy", trueForgeApi.includes("TRUEFORGE_BASE_URL") && trueForgeApi.includes("TRUEFORGE_TOKEN") && trueForgeApi.includes("TRUEFORGE_UI_TOKEN") && trueForgeApi.includes("/api/v1/sessions") && trueForgeApi.includes("text/event-stream") && trueForgeApi.includes("tool_approval") && trueForgeApi.includes("isProductionRuntime() ? \"\" : \"http://localhost:8790\"")],
+  ["TrueForge client streams real turns", js.includes("trueForgeStream") && js.includes("model.message.delta") && js.includes("thread.created") && js.includes("tool.approval_required") && js.includes("user.tool_approval") && js.includes("user.tool_response")],
+  ["TrueForge nested tool calls stay legible", js.includes("function trueForgeToolName") && js.includes('declaredName !== "call_tool"') && js.includes("tool_name") && js.includes("trueForgeToolAction")],
+  ["TrueForge resumes interrupted turns", js.includes('consume("subscribe"') && js.includes("afterSequenceNumber") && js.includes("Reconnecting")],
+  ["TrueForge handles connector authorization", js.includes("mcp.auth_required") && js.includes("resumeTrueForgeAuth") && js.includes("runTrueForgeTurn([], generation)")],
+  ["TrueForge uses the provisioned agent", js.includes('TRUEFORGE_AGENT_NAME = "blast-radius"') && js.includes('trueForgeJson("create")') && trueForgeApi.includes('action === "create"')],
+  ["TrueForge does not mask a missing agent", js.includes("trueForgeRuntime.ready || trueForgeRuntime.available") && js.includes("silently showing")],
   ["MCP errors fail closed", js.includes("if (!res.ok) throw") && js.includes("r?.result?.isError")],
   ["MCP session handshake is explicit", js.includes('method !== "initialize"') && js.includes('"notifications/initialized"') && js.includes("mcp-session-id") && js.includes("blast_mcp_initialized")],
   ["numeric subject requests stay scoped", js.includes("customer|subject|record|profile|id") && js.includes("displayGovName") && js.includes("Customer ${resolved.id}") && js.includes("subjectId ?")],

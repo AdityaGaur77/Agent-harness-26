@@ -5,7 +5,7 @@ Blast Radius is an erasure agent for a PostgreSQL customer database. Given
 legal obligations at once: GDPR's right to erasure, and tax law's requirement
 to keep seven years of invoice records for the same customer.
 
-## What you will see in the demo
+## What the connected agent does
 
 - The agent is asked to erase one named customer. It fans discovery out
   across four data domains in parallel (core identity, uploads, billing,
@@ -201,6 +201,31 @@ finding because the acceptance sweep omitted this PR; the row is included in
 the follow-up commit. The earlier implementation pass reported zero bugs,
 rule violations, and skill insights. It remains open until the live TrueForge
 and Daytona session is demonstrated and the maintainer merges it.
+
+### How the web UI connects to TrueForge
+
+The browser has two data paths. When the Vercel TrueForge proxy is configured,
+the request composer creates a named `blast-radius` session and streams the
+agent's real turn events into the conversation: reasoning messages, dynamic
+sub-agent threads, MCP calls and results, questions, and the approval gate.
+Approving or denying a destructive call sends a `user.tool_approval` resume
+turn back to the same session. Questions raised by the agent use the matching
+`user.tool_response` resume. TrueForge keeps the session and pending gate in
+its own store, so the work is not tied to an open browser tab.
+
+`api/trueforge-session.js` is the server-side boundary for that path. Set
+`TRUEFORGE_BASE_URL`, `TRUEFORGE_TOKEN`, and `TRUEFORGE_AGENT_NAME` in the
+deployment environment, plus a separate `TRUEFORGE_UI_TOKEN` for browser
+access. Enter that same workspace token once under Connections when the proxy
+requires it. The TrueForge credential remains on the server; the UI only
+receives the streamed events. To exercise the proxy locally, run `vercel dev
+--listen 4173` from the repository root; `python3 -m http.server` only serves
+the static fallback and cannot execute `api/*` functions.
+
+For Vercel, `TRUEFORGE_BASE_URL` must point to a reachable hosted TrueForge
+instance; a localhost URL works only when the proxy and TrueForge run on the
+same machine. The proxy fails closed when the runtime is not configured, so a
+public page never presents a fabricated agent run.
 
 ## AI assistance
 

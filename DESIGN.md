@@ -1,6 +1,6 @@
 ---
 name: Blast Radius
-description: ASCII-first synthetic demo. Private erasure agent with prominent ASCII art throughout.
+description: ASCII-first connected privacy agent. TrueForge session state made visible through purposeful motion.
 colors:
   canvas: "#0A0A0B"
   surface: "#141416"
@@ -62,15 +62,15 @@ spacing:
   2xl: "80px"
 ---
 
-# Design system: Blast Radius, ASCII-first synthetic demo
+# Design system: Blast Radius, ASCII-first connected agent
 
 ## Overview
 
-**Reading this as:** ASCII-first product demo for a private erasure agent, with a bold technical aesthetic, leaning toward dark monochrome with cyan accent and massive ASCII art as the primary visual language.
+**Reading this as:** ASCII-first product interface for a private erasure agent, with a restrained technical aesthetic and purposeful motion that makes the TrueForge session legible without exposing implementation details.
 
 **Physical scene:** Dark room, terminal glow. You type what to find. The agent responds with living ASCII art that breathes, searches, thinks. No fluff. Pure function made visible.
 
-**Core idea:** Dark canvas. Cyan accent. ASCII appears throughout the hero, sidebar, cards, progress, and state views. The ASCII *is* the interface. Synthetic demo data runs instantly. No backend needed. Pure frontend polish.
+**Core idea:** Dark canvas. Cyan accent. ASCII appears throughout the landing view, workspace, progress, and state views. The ASCII *is* the interface. Connected mode is driven by TrueForge; direct MCP remains a local fallback when the runtime is unavailable.
 
 **Variance / Motion / Density:** `8 / 7 / 6` for expressive, cinematic motion and rich density.
 

@@ -8,7 +8,11 @@ Product UI. This is the working interface for an autonomous privacy agent, not a
 
 Blast Radius helps people find personal information exposed online, understand which records likely belong to them, and remove or suppress it with minimal manual work. The agent decides where to search, sends work to specialist subagents, asks a question only when identity or authorization is unclear, rehearses consequential actions, and continues within a standing scope.
 
-The current repository is a frontend demonstration backed by synthetic customer 4471. It must distinguish simulated evidence from connected tools. Never claim that a live source was searched or that a removal occurred unless a connected tool confirms it.
+The repository contains the customer-facing UI and a server-side TrueForge
+session proxy. When the runtime is configured, requests use the provisioned
+`blast-radius` agent; a direct MCP path remains available for local connector
+validation. Disconnected states must never claim that a live source was
+searched or that a removal occurred unless a connected tool confirms it.
 
 ## Primary Users
 
@@ -36,7 +40,7 @@ Within 30 seconds, a person should be able to state a goal in plain language, se
 - Surface uncertainty, source provenance, and confidence without exposing internal chain of thought.
 - Treat the existing approval system as the policy engine. Standing authorization satisfies routine in-scope actions; out-of-scope or conflicting actions interrupt the user.
 - Rehearse destructive work before execution and preserve rollback evidence.
-- Keep the synthetic demo honest. No live execution claims.
+- Keep disconnected states honest. No live execution claims without a tool result.
 
 ## Required Capability Coverage
 
