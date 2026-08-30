@@ -1,74 +1,129 @@
 ---
 name: gdpr-erasure
-description: Procedure for handling a data-erasure request against a subject-data store. Use whenever asked to delete, erase, remove or "forget" everything held for a data subject.
+description: Procedure for handling a data subject erasure request against a subject-data store, including "right to be forgotten" requests, GDPR/DSAR (data subject access request) deletion requests, and any instruction to delete, erase, remove, purge, or "forget" everything held for a named customer or subject. Use this whenever a request asks to delete all data for a specific person or account, not for deleting a single record or an unrelated bulk operation.
 ---
 
 # Handling an erasure request
 
 You are deciding what to destroy in someone else's database. Deletion does not
-ask twice and nothing here can be undone after the gate. Work in phases and do
-not skip one, even when the request looks trivial.
+ask twice, and nothing here can be undone once it passes the gate. Work through
+every phase in order and do not skip one because the request looks simple.
 
-## 1. Discover before you plan
+## 1. Map the graph before you plan anything
 
-Read the schema, the foreign-key graph, and every table that holds rows for the
-subject. Use the read-only tools; they never need approval, so there is no
-reason to economise on looking.
+Read the schema and the foreign-key graph first. For every foreign key that
+touches the subject's rows, note its `ON DELETE` behavior specifically. A table
+you never name in a plan can still lose rows, or have rows orphaned, because a
+cascade or a null-out reaches it from a table you did name. You cannot plan
+around a cascade you have not read.
 
-Pay attention to the `ON DELETE` behaviour of each foreign key. A row you never
-name in a plan can still be destroyed by a cascade from a row you did name.
-That is the usual way an erasure does more than its author intended.
+## 2. Delegate discovery, and ask for summaries only
 
-## 2. Read the retention policies out of the database
+Do not search the whole store yourself in one pass. Fan discovery out across
+the data domains in parallel, one delegated search per domain, because each
+domain has a different shape of "where might this subject appear" and a single
+serial search misses that. Each delegated search reports back a summary: which
+tables held rows for the subject, how many, and the foreign-key path that
+reached them. It never reports back row contents. Row contents are exactly what
+an erasure workflow should not be copying into a wider context.
 
 Call the retention-policy tool and read the rows. Do this every time. Do not
 rely on what a previous request concluded, on what the policies were the last
-time you looked, or on any expectation of what they ought to say — they are
+time you looked, or on any expectation of what they ought to say. They are
 data, they change, and the database is the only authority on them.
+See `references/discovery-brief.md` for the brief to give each delegated
+search: what to look for, what to return, and what never to return.
 
-For every table your plan touches, check that table's entry before you decide
-its fate. A table with no policy row is not automatically unconstrained; if you
-cannot find an entry, say so rather than assuming permission.
+## 3. Read the retention policy for every table your plan touches
 
-## 3. Rehearse, then read what you measured
+Call the retention-policy tool and read its rows. Do this every time; do not
+reuse what a previous request concluded or what you expect the policy to say,
+because the database is the only authority on it and policies change.
 
-Snapshot to the shadow copy and rehearse the plan there. The rehearsal really
-executes and really fires the database's own cascades, so its numbers are
-measurements, not predictions.
+Check the policy for every table your plan reaches, including a table you only
+reach by cascade or by a foreign key set to null. A table's rows can be
+destroyed by your plan without your plan ever naming that table directly, and
+the retention policy still applies to it.
 
-Read them. Which tables lost rows, which lost rows you never named, how many
-rows were left orphaned, and whether anything was blocked. Never present a
-number you did not measure, and never describe a plan as safe because it looks
-obviously safe.
+## 4. Snapshot and rehearse before proposing anything
 
-## 4. Resolve the conflict, do not pick a side
+Snapshot the store to a shadow copy and rehearse the plan there before you
+present it to anyone. A plan you have not rehearsed is a guess wearing the
+shape of a plan.
 
-If the rehearsal shows the plan destroying rows that a retention obligation
-protects, you have two valid legal duties in collision: the subject's right to
-erasure and the obligation to keep the record. Satisfying one by ignoring the
-other is not a resolution.
+## 5. Read what the rehearsal measured, not what it returned
 
-Rewrite the plan so it does both: erase the personal data outright where you
-may, and where a row must be kept, preserve the row and overwrite the columns
-the policy names for de-identification instead of deleting it. Note that
-deleting a parent row can destroy protected children through a cascade, so
-preserving those children may mean keeping the parent and de-identifying it
-rather than removing it.
+The rehearsal runs for real inside the shadow copy and fires the database's
+own cascades, so its output is a measurement, not a prediction. A rehearsal
+that completes without a database error is not the same thing as a rehearsal
+that is correct. Read the measured result: which tables lost rows, which of
+those you did not name, what was orphaned, and whether anything you read in
+step 3 was violated. Success completing is not success being correct.
 
-Then rehearse again. A revision you have not re-measured is a guess.
+## 6. Resolve a retention conflict, do not report it and stop
 
-## 5. Stop at the gate
+If the measured result shows the plan destroying rows a retention policy
+protects, you are holding two valid obligations at once: the subject's right
+to erasure, and the duty to retain that record. Stopping and reporting the
+conflict back to a human is not resolving it, and neither is picking one
+obligation and ignoring the other.
 
-Present the final plan together with the measured blast radius from the clean
-rehearsal, and wait. Executing is gated on a human decision; that pause is the
-point of this procedure, not an obstacle to it.
+Revise the plan yourself: delete the subject's personal data outright wherever
+nothing protects it, and wherever a row is protected, keep the row and
+overwrite the columns the retention policy names for it instead of deleting
+it. Remember that deleting a parent row can take a protected child down with
+it through a cascade, so protecting the child can mean keeping and
+de-identifying the parent rather than removing it.
 
-If the human denies the plan, ask what they want changed, revise, rehearse
-again, and come back. Do not attempt the execution tool until a rehearsal of
-that exact plan has come back clean.
+## 7. Re-rehearse until the measured result is clean
 
-## Reporting
+Snapshot and rehearse the revised plan again. Do not reason about whether the
+revision should work; measure it. Repeat step 6 and this step until a
+rehearsal reports no retention violations at all. A revision you have not
+re-measured is still a guess.
 
-Say what you measured and where you read it. When you report a conflict, name
-the policy row you read and the cascade you measured, so a reader can check
-your reasoning against the database rather than taking your word for it.
+## 8. Present the plan and the measured blast radius, then stop
+
+Bring the human the final plan together with the measured numbers from the
+clean rehearsal that produced it, and wait at the gate. That pause is the
+point of this procedure, not friction on top of it. If the human denies the
+plan, ask what should change, revise, rehearse again, and return; do not
+re-present the same plan or attempt the execution tool again without a fresh
+clean rehearsal behind it.
+
+A clean rehearsal is what makes the execution tool callable at all: use the
+plan and the token that exact rehearsal returned, unchanged. If you alter the
+plan after rehearsing it, even to simplify it after an error, that token no
+longer applies and the tool will refuse it. Rehearse the plan you actually
+intend to run, not a fallback you have not measured.
+
+## 9. Verify the outcome against what you measured
+
+After execution, check the resulting state against the rehearsal that was
+approved: the tables that should have lost rows did, the tables that should
+have kept protected rows still have them, and nothing moved that the approved
+rehearsal did not predict. If the outcome does not match the rehearsal,
+say so before doing anything else; do not treat execution completing as
+execution matching the plan.
+
+## 10. Close with a receipt
+
+Report what was deleted outright, what was preserved and de-identified
+instead and under which policy, and confirm that the verified outcome matched
+the approved rehearsal. Name the specific retention rows and the specific
+measured numbers behind each claim, so the report can be checked against the
+database rather than taken on trust.
+
+## Rules
+
+- Never call the execution tool until a rehearsal of that exact plan has come
+  back with no retention violations, and always call it with the token that
+  same rehearsal returned. A different plan, even a simpler one offered after
+  an error, needs its own clean rehearsal before it can run.
+- Never delete a row a retention policy protects. Anonymise it instead, per
+  step 6.
+- If a table your plan touches has no retention policy entry at all, that is
+  not permission to proceed. An absent policy is not an empty one. Stop and
+  ask a human before touching that table.
+- Report only numbers you measured in a rehearsal or a verified outcome.
+  Never state an estimate or a prediction as if it were a measurement.

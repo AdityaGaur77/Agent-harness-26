@@ -5,12 +5,13 @@ Owner: Aditya until 27 Aug, then Nishad.
 
 ## Architecture in one paragraph
 
-TrueForge (harness) connects to our MCP server over streamable HTTP at
-`http://mcp-server:8080/mcp` using a bearer token. The server talks to Postgres
-(`blast_main`, production data) and clones it into `blast_shadow` for rehearsals.
+The primary MCP server talks to `blast_main` and remains the isolated smoke-test
+target. The `demo-mcp-server` talks to the synthetic `blast_demo` database and
+is the connector used by the hackathon agent. Both use streamable HTTP and the
+same bearer token; each clones its own database into a separate shadow database.
 Every tool except `execute_deletion` is annotated read-only; `execute_deletion`
 is annotated destructive AND listed in `requireApprovalForTools`, so the harness
-pauses for a human before running it. That double coverage is intentional:
+pauses for a human before it runs. The two layers are intentional:
 the annotation auto-gates on `@destructive` even if the manifest list changes.
 
 ## Common operations
@@ -18,15 +19,16 @@ the annotation auto-gates on `@destructive` even if the manifest list changes.
 ### Start / stop everything
 
 ```bash
-MCP_AUTH_TOKEN=dev-token docker compose up -d --build   # start
+MCP_AUTH_TOKEN=dev-token docker compose up -d --build --wait   # start and wait for health
 docker compose down                                      # stop (keeps pgdata volume)
 ```
 
 Host ports are configurable for machines where 8080/5432 are taken:
 
 ```bash
-MCP_HOST_PORT=18082 POSTGRES_HOST_PORT=15432 docker compose up -d
-# server reachable at http://127.0.0.1:18082/mcp
+MCP_HOST_PORT=18082 DEMO_MCP_HOST_PORT=18083 POSTGRES_HOST_PORT=15432 docker compose up -d
+# smoke endpoint: http://127.0.0.1:18082/mcp
+# synthetic demo endpoint: http://127.0.0.1:18083/mcp
 ```
 
 ### Verify nothing broke (run before every demo)
@@ -37,16 +39,17 @@ DATABASE_URL=postgresql://blast:blast@127.0.0.1:15432/blast_main \
 MCP_URL=http://127.0.0.1:18082 MCP_AUTH_TOKEN=dev-token npm run smoke
 ```
 
-Expect `28 passed, 0 failed`. The suite replays the full story: naive plan ->
+Expect `36 passed, 0 failed`. The suite replays the full story: naive plan ->
 cascade measured -> retention conflict -> revised plan -> clean rehearsal ->
-gated execution -> production state asserted.
+gated execution -> production state asserted. It resets `blast_main` only; the
+Compose MCP server at `MCP_URL` must therefore remain pointed at `blast_main`.
 
 ### Provision / re-provision the agent
 
 ```bash
 cd packages/agent && npm install
 TRUEFORGE_BASE_URL=http://localhost:8791 TRUEFORGE_TOKEN=... \
-MODEL_NAME=openai/gpt-4o-mini MCP_AUTH_TOKEN=dev-token npm run provision
+MODEL_NAME=google-gemini/gemini-3-6-flash MCP_AUTH_TOKEN=dev-token npm run provision
 ```
 
 Safe to re-run: connector registration uses `createOrUpdate`; if the agent name

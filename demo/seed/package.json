@@ -1,0 +1,16 @@
+{
+  "name": "@blast-radius/demo-seed",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.14"
+  },
+  "scripts": {
+    "seed": "node seed.mjs"
+  },
+  "dependencies": {
+    "@faker-js/faker": "^10.6.0",
+    "pg": "^8.16.3"
+  }
+}

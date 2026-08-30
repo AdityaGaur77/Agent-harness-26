@@ -1,197 +1,249 @@
 ---
 name: Blast Radius
-description: Document-style erasure agent. White, monochrome, editorial, ASCII-led.
+description: ASCII-first connected privacy agent. TrueForge session state made visible through purposeful motion.
 colors:
-  canvas: "#FFFFFF"
-  bone: "#F7F6F3"
-  surface: "#FFFFFF"
-  card: "#FFFFFF"
-  border: "rgba(0,0,0,0.06)"
-  border-strong: "#EAEAEA"
-  ink: "#111111"
-  ink-soft: "#2F3437"
-  muted: "#787774"
-  faint: "#9A9A9A"
-  pastel-red: "#FDEBEC"
-  pastel-red-text: "#9F2F2D"
-  pastel-blue: "#E1F3FE"
-  pastel-blue-text: "#1F6C9F"
-  pastel-green: "#EDF3EC"
-  pastel-green-text: "#346538"
-  pastel-yellow: "#FBF3DB"
-  pastel-yellow-text: "#956400"
+  canvas: "#0A0A0B"
+  surface: "#141416"
+  surface-elevated: "#1C1C1F"
+  border: "#2A2A2E"
+  border-strong: "#3A3A3F"
+  ink: "#FAFAFA"
+  ink-soft: "#D4D4D8"
+  muted: "#A1A1AA"
+  faint: "#71717A"
+  accent: "#22D3EE"
+  accent-soft: "#0E7490"
+  accent-bg: "#052D3D"
+  success: "#4ADE80"
+  success-bg: "#052E16"
+  warning: "#FBBF24"
+  warning-bg: "#2E1A00"
+  danger: "#FB7185"
+  danger-bg: "#2E050A"
 typography:
   display:
-    fontFamily: "'Newsreader', 'Lyon Text', 'Playfair Display', serif"
-    fontSize: "clamp(2.4rem, 4.2vw, 3.6rem)"
+    fontFamily: "'Space Grotesk', 'JetBrains Mono', monospace"
+    fontSize: "clamp(2.5rem, 5vw, 4.5rem)"
+    fontWeight: 700
+    lineHeight: 1.0
+    letterSpacing: "-0.03em"
+  body:
+    fontFamily: "'Space Grotesk', 'JetBrains Mono', monospace"
+    fontSize: "1rem"
     fontWeight: 400
-    lineHeight: 1.05
-    letterSpacing: "-0.04em"
+    lineHeight: 1.7
   ui:
-    fontFamily: "'SF Pro Display', 'Geist Sans', 'Helvetica Neue', sans-serif"
+    fontFamily: "'Space Grotesk', 'JetBrains Mono', monospace"
     fontSize: "0.875rem"
     fontWeight: 500
     lineHeight: 1.5
   mono:
-    fontFamily: "'Geist Mono', 'SF Mono', 'JetBrains Mono', monospace"
-    fontSize: "0.7rem"
+    fontFamily: "'JetBrains Mono', 'Fira Code', monospace"
+    fontSize: "0.75rem"
     fontWeight: 400
-    lineHeight: 1.5
+    lineHeight: 1.4
+  ascii:
+    fontFamily: "'JetBrains Mono', 'Fira Code', monospace"
+    fontSize: "0.65rem"
+    fontWeight: 400
+    lineHeight: 1.15
 rounded:
-  card: "12px"
-  control: "6px"
-  tag: "9999px"
+  card: "16px"
+  control: "10px"
+  pill: "9999px"
 spacing:
-  section: "96px"
+  section: "120px"
   card: "32px"
   xs: "6px"
   sm: "10px"
   md: "16px"
   lg: "24px"
   xl: "40px"
+  2xl: "80px"
 ---
 
-# Design System: Blast Radius — Premium Utilitarian Minimal
+# Design system: Blast Radius, ASCII-first connected agent
 
 ## Overview
 
-**Reading this as:** document-style product UI for a private erasure agent used by ordinary people at a desk, with an editorial minimal language, leaning toward warm monochrome + spot pastels and ASCII as primary spatial system.
+**Reading this as:** ASCII-first product interface for a private erasure agent, with a restrained technical aesthetic and purposeful motion that makes the TrueForge session legible without exposing implementation details.
 
-**Physical scene:** Morning, white desk, white page, thin 1px lines. You see where your address leaked. You type what to clear. The agent shows an open ASCII field above the prompt. It runs below. You say delete when ready.
+**Physical scene:** Dark room, terminal glow. You type what to find. The agent responds with living ASCII art that breathes, searches, thinks. No fluff. Pure function made visible.
 
-**Core idea:** White holds the page. Thin lines and air hold structure. Serif carries the single headline. Mono ASCII carries life. Pastel appears only as a 4px tag or live wash. The workflow stays in three plain moves: tell it, watch it, say delete.
+**Core idea:** Dark canvas. Cyan accent. ASCII appears throughout the landing view, workspace, progress, and state views. The ASCII *is* the interface. Connected mode is driven by TrueForge; direct MCP remains a local fallback when the runtime is unavailable.
 
-**Variance / Motion / Density:** `4 / 2 / 2` — restrained grid, invisible motion, gallery air.
+**Variance / Motion / Density:** `8 / 7 / 6` for expressive, cinematic motion and rich density.
 
 ## Colors
 
-White and bone are the only surfaces. Pastel is scarce and semantic.
+Dark monochrome base. Cyan is the only chromatic signal. Used for ASCII, primary actions, live states.
 
 ### Roles
 
-- **Canvas** `#FFFFFF`: Full page and sidebar.
-- **Bone** `#F7F6F3` / `#FBFBFA`: Subtle section washes and kbd keys. Never a full flood.
-- **Card** `#FFFFFF` with `1px solid #EAEAEA`: Every container. No shadow, no tint.
-- **Ink** `#111111`: Headlines, primary button, ASCII glyphs, icons.
-- **Ink Soft** `#2F3437`: Secondary titles and active states.
-- **Muted** `#787774`: Meta, labels, timestamps.
-- **Faint** `#9A9A9A`: Placeholders and disabled.
-- **Pastel Blue** `#E1F3FE` / `#1F6C9F`: Info tags and quiet washes.
-- **Pastel Green** `#EDF3EC` / `#346538`: Live and done.
-- **Pastel Yellow** `#FBF3DB` / `#956400`: Needs you / waiting.
-- **Pastel Red** `#FDEBEC` / `#9F2F2D`: Error only.
+- **Canvas** `#0A0A0B`: Full page background. Near-black with subtle warmth.
+- **Surface** `#141416`: Cards, panels, composer. One step up from canvas.
+- **Surface Elevated** `#1C1C1F`: Hover states, active cards, dropdowns.
+- **Border** `#2A2A2E`: Default borders, dividers.
+- **Border Strong** `#3A3A3F`: Focus rings, active borders.
+- **Ink** `#FAFAFA`: Primary text, headings, ASCII glyphs.
+- **Ink Soft** `#D4D4D8`: Secondary text, descriptions.
+- **Muted** `#A1A1AA`: Labels, timestamps, secondary info.
+- **Faint** `#71717A`: Placeholders, disabled, deep secondary.
+- **Accent** `#22D3EE`: Cyan. Primary actions, ASCII glyphs, live indicators, focus rings. The *only* color.
+- **Accent Soft** `#0E7490`: Hover states for accent.
+- **Accent BG** `#052D3D`: Wash behind accent elements.
+- **Success** `#4ADE80` / **Success BG** `#052E16`: Done states, confirmations.
+- **Warning** `#FBBF24` / **Warning BG** `#2E1A00`: Waiting, needs input.
+- **Danger** `#FB7185` / **Danger BG** `#2E050A`: Errors, destructive actions.
 
 ### Rules
 
-**No flood.** No large colored backgrounds. No gradients, no neon, no glass beyond a navbar blur at `8px`.
+**One accent.** Cyan only. No other hues. Variation through opacity and background washes.
 
-**Pastel as tag only.** Pastel sits in `9999px` pill tags at `text-xs` uppercase or in a 4px wash behind a dot. Never as a full card fill.
+**Dark first.** No light mode. Canvas is near-black. Surfaces step up in 10% luminance increments.
 
-**Border is the system.** `1px solid #EAEAEA` or `rgba(0,0,0,0.06)` separates everything. No diffuse shadows above `0 2px 8px rgba(0,0,0,0.04)`.
+**ASCII owns the accent.** ASCII glyphs render in accent cyan. Live states pulse in accent.
 
 ## Typography
 
-**Display serif** `Newsreader / Playfair Display` at `400`, `line-height 1.05`, `tracking -0.04em` for the single hero headline and agent messages. One editorial voice.
+**Display:** Space Grotesk 700 at 400 weight for hero. Tight tracking. Pure mono feel with geometric quirks.
 
-**UI sans** `SF Pro Display / Geist Sans / Helvetica Neue` at `500` for navigation, buttons, labels, meta.
+**UI:** Space Grotesk 500 for all UI text. Monospace feel without being mono.
 
-**Mono** `Geist Mono / SF Mono` at `400` for ASCII, keystrokes, IDs, timestamps.
+**Mono:** JetBrains Mono for code, IDs, timestamps, data.
+
+**ASCII:** JetBrains Mono at 0.65rem, 1.15 line height, 12 FPS. The star of the show.
 
 ### Hierarchy
 
-- **Display** `38-56px / 1.05 / -0.04em / serif`: One per view. The request.
-- **Title** `15px / 500 / -0.01em / sans`: Row and question titles.
-- **Body** `15px / 1.6 / ink #111111`: Conversation. Max `65ch`, never pure black.
-- **Label** `11px / 700 / 0.05em uppercase / sans`: Eyebrows, tags.
-- **Mono** `11px / mono`: ASCII field, `<kbd>`, provenance.
+- **Display** `40-72px / 1.0 / -0.03em`: Hero only. One per view.
+- **Title** `16px / 600 / -0.01em`: Card titles, section heads.
+- **Body** `16px / 1.7 / ink`: Conversation, descriptions. Max 70ch.
+- **Label** `11px / 600 / 0.08em uppercase`: Eyebrows, tags, metadata.
+- **Mono** `12px / mono`: ASCII, data, provenance.
 
 ## Shape
 
-- **Card** `12px` max. `8px` on small controls. Large containers never `rounded-full`.
-- **Control** `6px` for primary button, inputs, secondary buttons. `4px` for kbd.
-- **Tag** `9999px` only for status pills and badges at `text-xs`.
-
-**Documented rule:** Cards and composers are `12px`. Primary button is `6px`. Tags are pill. No 18px, no 22px, no 999px on large surfaces.
+- **Card** `16px`: All containers. Generous radius for polished feel.
+- **Control** `10px`: Buttons, inputs, small cards.
+- **Pill** `9999px`: Tags, badges, primary button.
 
 ## Space
 
-Macro whitespace is the layout. Sections use `py-24` to `py-32`. Content constrained to `max-w-4xl` to `max-w-5xl` at center. Cards carry `24px` to `40px` internal padding. Dividers are `1px solid #EAEAEA` with air on both sides. Never stack cards without air.
+Generous macro whitespace. Sections use `120px` of vertical space. Cards have `32px` padding. ASCII fields get room because they *are* the content.
 
 ## Elevation
 
-Ultra-flat. No `shadow-md/lg/xl`. The only allowed shadow is `0 2px 8px rgba(0,0,0,0.04)` on hover lift for cards, or `0 0 0 rgba(0,0,0,0)` at rest. Buttons have no shadow. Navbar may blur at `8px`.
+Layered dark surfaces. No shadows on static elements. Hover lift: `0 4px 24px rgba(0,0,0,0.4)` with accent border glow. Focus: `0 0 0 2px accent`.
 
 ## Motion
 
-Invisible. `transform` and `opacity` only.
+Cinematic but purposeful. 12 FPS ASCII refresh. Spring physics for state transitions.
 
-- Entry: `translateY(12px) + opacity 0 → 0` over `600ms` `cubic-bezier(0.16, 1, 0.3, 1)` via `IntersectionObserver`, staggered `calc(var(--index) * 80ms)`.
-- Hover: card `box-shadow` from `0 0 0` to `0 2px 8px rgba(0,0,0,0.04)` in `200ms`. Button `:active` `scale(0.98)`.
-- ASCII: 12 FPS glyph refresh, spring `stiffness 28 / damping 10.2` with velocity handoff. Reduced motion collapses to static. No layout jitter, no `transition: all`, no scroll listener.
+- ASCII: 12 FPS glyph refresh, spring `stiffness 35 / damping 9` with velocity handoff.
+- State transitions: 400ms cubic-bezier(0.16, 1, 0.3, 1).
+- Staggered reveals: `calc(var(--index) * 100ms)`.
+- Reduced motion: ASCII freezes on last frame, crossfade only.
 
-**One ambient layer only** if used: a single radial gradient blob at `opacity 0.02-0.04`, `20s+` drift, `position: fixed; pointer-events: none`.
+**ASCII is the motion layer.** Everything else is static or subtle hover.
 
 ## Components
 
 ### Shell
 
-White sidebar with `1px solid #EAEAEA` right border. No cream. Rail groups carry air, not washes. Selected row uses `1px solid #EAEAEA` plus `background #F7F6F3` wash. No lavender wash.
+Dark sidebar with `1px border` right. Rail groups separated by ASCII dividers. Selected row: accent border + surface-elevated wash.
 
-### ASCII Presence
+### ASCII Hero (Home)
 
-Mono field centered above headline at `72×17` home, `42×14` agent. Glyphs are `·` and `:` in `#111111` at `0.94` opacity, `8.6px` home / `5.2px` agent, tight tracking. Elliptical orbit with pulse and spring displacement. Center label `[ ready ]` etc in mono. Home second line `your data, under your direction`, third line `5.6 traces per name · white · document` in faint mono. Integration: field sits on white with no card, no border, max air. Agent compact sits inside a `12px` flat card with `1px #EAEAEA` and `#FFFFFF`.
+Massive ASCII field `160×40` centered above the prompt. A breathing orbital animation carries the state label `[ ready ]` at center. The sub-label types on load. No card or border, just ASCII on canvas.
+
+### ASCII Agent (Mission)
+
+Compact ASCII `80×24` embedded in progress bar. Same animation language. State label `[ finding ]` etc.
+
+### ASCII Cards
+
+Every mission card has a mini ASCII indicator `24×8` showing state: idle pulse, search scan, check diamond, execute bars.
 
 ### Composer
 
-White, `1px solid #EAEAEA`, `12px` radius, no shadow. Textarea borderless. Footer holds `Runs alone` with dot in pastel green wash and `Add detail` in muted. Send is `#111111` on `#FFFFFF` text, `6px` radius, hover `#333333`. Focus adds `1px #111111` ring.
+Surface elevated, `1px border-strong`, `16px` radius. Textarea borderless. Footer: synthetic status dot (cyan pulse), detail button, send button (accent bg, ink text, `10px` radius).
 
-### Bento Feature Grids
+### Progress Bar
 
-Asymmetrical CSS Grid. Each cell is a card `1px #EAEAEA`, `12px` max, `24-32px` padding. Never pill. Images if used are desaturated warm photos at low opacity, no saturation.
+Sticky top. Left: mini ASCII. Center: title, detail, track (accent fill, spring width). Right: pause button (control radius).
 
-### Buttons
+### Activity Card
 
-Primary: `#111111` bg, `#FFFFFF` text, `6px` radius, no shadow, hover `#333333` or `scale(0.98)`. Secondary: white with `1px #EAEAEA`, `6px`. Tags: pill `9999px`, `text-xs` uppercase, pastel fill per semantic.
+Flat surface, `1px border`, `16px` radius. Heading with chevron. Body: steps with ASCII indicators (pulse/scan/diamond/bars). Parallel grid with live dots.
 
-### Progress + Activity
+### Question Card
 
-Sticky progress is a flat card `12px`, `1px #EAEAEA`, no shadow. Left ascii frame `12px`, center title/detail/track (`3px` track in `#F7F6F3` with `#111111` fill), right pause is secondary button `6px`. Activity card is flat, heading row with `border-bottom 1px #EAEAEA`, steps are lines separated by `1px #EAEAEA`, not chips.
+Accent border, accent BG wash. Left: large `?` in mono. Right: question, two pill buttons.
+
+### Completion
+
+Check mark in accent. Bold title. Synthetic summary. Primary action: `Delete what you can` (accent). Secondary: `See what I found`.
 
 ### Drawer
 
-White, left `1px #EAEAEA`, `0 2px 8px rgba(0,0,0,0.04)` if lifted. Sections divided by `1px #EAEAEA`. Impact grid is a `1px #EAEAEA` bordered card with internal dividers, not a tinted grid.
+Surface elevated, left `1px border-strong`. Sections divided by `1px border`. Impact grid: bordered cards with internal dividers. Tool list: mono code + description.
 
-### Kbd + Window Chrome
+### ASCII States Library
 
-Shortcuts as `<kbd>` with `1px #EAEAEA`, `4px` radius, `bg #F7F6F3`, mono. Mock windows get white top bar with three `8px` light grey circles.
+Each agent state has distinct ASCII signature:
+- **Idle**: Slow orbital pulse, `[ ready ]`
+- **Reasoning**: Tightening orbit, `[ thinking ]`
+- **Question**: Frozen orbit, blinking `?`, `[ ? ]`
+- **Searching**: Horizontal scan wave, `[ finding ]`
+- **Rehearsing**: Diamond contour, `[ checking ]`
+- **Executing**: Horizontal bars with ticks, `[ clearing ]`
+- **Monitoring**: Radial sweep, `[ verify ]`
+- **Complete**: Steady glow, `[ done ]`
+- **Error**: Cross pattern, `[ halted ]`
+
+## Synthetic Demo Data
+
+All data is generated client-side. No network calls. Instant.
+
+- **Evidence fixture**: 7 source types with marks, names, details, confidence
+- **Subagents**: 5 parallel (identity, brokers, records, links, web)
+- **Steps**: 4 phases (understand → search → check → act)
+- **Impact**: 42 records, 9 remove, 24 clear, 9 cut, 5.6 traces/name
+- **Audit**: Timestamped events with types
+- **Identity**: Jane Q Synthetic, Nashville, customer 4471
+- **Question**: Nashville confirmation (yes/no)
 
 ## Copy Voice
 
-Plain, specific, document-like. No elevate, seamless, unleash, next-gen. No adverbs. One idea per sentence. “You” addresses the reader. Numbers and provenance stay literal.
+Direct. Technical. No fluff. One idea per sentence. "You" addresses the reader. Numbers literal. No adverbs. No em dashes. Stop-slop compliant.
 
 ## Do and Do Not
 
 ### Do
 
-- Keep white dominant. Let air and thin lines do the work.
-- Use serif once for the headline, sans for chrome, mono for evidence.
-- Let ASCII breathe above the prompt. Keep it as the only ambient layer.
-- Expose four plain steps: Understand, Search, Check, Delete.
-- End with `Delete what you can.` Keep law-keeps note literal.
+- ASCII everywhere. Hero, sidebar, cards, progress, states.
+- Cyan accent only. No other colors.
+- Dark canvas. Surfaces step up.
+- Synthetic data runs instantly. No loading skeletons.
+- Space Grotesk + JetBrains Mono only.
+- Generous radii (16px cards).
+- 12 FPS ASCII with spring physics.
 
 ### Do Not
 
-- Use Inter, Roboto, Open Sans, Lucide/Feather/Heroicons thin strokes, `shadow-lg`, pill on large containers, gradients, neon, 3D glass, emojis, John Doe / Acme / Lorem, or cliche copy.
-- Flood a section with a solid primary color or pastel card fill.
-- Use `rounded-full` on composer, cards, or primary buttons.
-- Animate layout properties or mount grid items without stagger.
+- Light mode. Gradients. Other colors.
+- Real network calls in demo mode.
+- Inter, Roboto, system sans.
+- Small radii (8px or less).
+- Card grids without ASCII.
+- Static ASCII. It must breathe.
 
 ## Verification
 
-- White stays dominant. Pastel covers <6% surface and only in pill tags or dot washes.
-- One headline per view, `tracking -0.04em`, `line-height 1.05`, max `65ch`.
-- Corners: cards `12px` max, buttons `6px`, tags pill — no drift.
-- Borders everywhere `1px solid #EAEAEA`.
-- ASCII `72×17` home, `42×14` agent at 12 FPS, spring preserved, reduced motion static.
-- Sections carry `py-24` to `py-32`, content `max-w-4xl/5xl`, images desaturated if present.
-- All states complete and keyboard accessible.
+- ASCII renders at 12 FPS with spring physics on all target states.
+- Cyan accent <15% surface area.
+- One font family for display/UI, one for mono/ASCII.
+- All radii use 16px, 10px, or pill values without drift.
+- Demo completes in <30s with zero network calls.
+- Keyboard accessible, reduced motion respected.

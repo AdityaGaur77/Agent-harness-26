@@ -17,8 +17,37 @@ function requiredEnv(name: string): string {
 
 export const SHADOW_DB_NAME = process.env.SHADOW_DB_NAME?.trim() || "blast_shadow";
 
-function databaseUrl(): string {
+/**
+ * The Render database credential points at the service's maintenance database.
+ * Subject data can live in a separate database on that same Postgres instance;
+ * keeping the override here means every query, snapshot and rehearsal uses the
+ * same isolated target instead of accidentally inspecting TrueForge metadata.
+ */
+export function configuredDatabaseUrl(): string {
   return requiredEnv("DATABASE_URL");
+}
+
+export function subjectDatabaseName(): string {
+  const configured = process.env.SUBJECT_DATABASE_NAME?.trim();
+  if (configured) return configured;
+  const pathname = new URL(configuredDatabaseUrl()).pathname.replace(/^\//, "");
+  return decodeURIComponent(pathname) || "postgres";
+}
+
+export function subjectDatabaseUrl(): string {
+  const url = new URL(configuredDatabaseUrl());
+  url.pathname = `/${subjectDatabaseName()}`;
+  return url.toString();
+}
+
+export function maintenanceDatabaseUrl(): string {
+  const url = new URL(configuredDatabaseUrl());
+  url.pathname = "/postgres";
+  return url.toString();
+}
+
+function databaseUrl(): string {
+  return subjectDatabaseUrl();
 }
 
 export function shadowDatabaseUrl(): string {
@@ -30,8 +59,7 @@ export function shadowDatabaseUrl(): string {
 }
 
 export function mainDatabaseName(): string {
-  const pathname = new URL(databaseUrl()).pathname.replace(/^\//, "");
-  return decodeURIComponent(pathname) || "postgres";
+  return subjectDatabaseName();
 }
 
 const pools = new Map<"main" | "shadow", Pool>();
@@ -179,9 +207,7 @@ export async function getRetentionPolicies(db: Queryable): Promise<RetentionPoli
 }
 
 async function getMaintenanceClient(): Promise<Client> {
-  const url = new URL(databaseUrl());
-  url.pathname = "/postgres";
-  const client = new Client({ connectionString: url.toString() });
+  const client = new Client({ connectionString: maintenanceDatabaseUrl() });
   await client.connect();
   return client;
 }

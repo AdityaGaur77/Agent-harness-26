@@ -6,9 +6,13 @@ Product UI. This is the working interface for an autonomous privacy agent, not a
 
 ## Product Purpose
 
-Blast Radius helps ordinary people find personal information exposed across the internet, understand which records likely belong to them, and remove or suppress that information with minimal manual work. The agent reasons about what to search for, fans work out to specialist subagents, asks the person a question only when identity or authorization is ambiguous, rehearses consequential actions, then continues autonomously inside a standing scope.
+Blast Radius helps people find personal information exposed online, understand which records likely belong to them, and remove or suppress it with minimal manual work. The agent decides where to search, sends work to specialist subagents, asks a question only when identity or authorization is unclear, rehearses consequential actions, and continues within a standing scope.
 
-The current repository is a frontend demonstration backed by synthetic customer 4471. It must distinguish simulated evidence from connected tools. Never claim that a live source was searched or that a removal occurred unless a connected tool confirms it.
+The repository contains the customer-facing UI and a server-side TrueForge
+session proxy. When the runtime is configured, requests use the provisioned
+`blast-radius` agent; a direct MCP path remains available for local connector
+validation. Disconnected states must never claim that a live source was
+searched or that a removal occurred unless a connected tool confirms it.
 
 ## Primary Users
 
@@ -16,7 +20,7 @@ People who discover that their address, phone number, family links, profiles, or
 
 ## Desired Outcome
 
-Within 30 seconds, a person should be able to state the goal in plain language, see that the agent has begun useful work, understand what it is doing, and know when their input is genuinely required.
+Within 30 seconds, a person should be able to state a goal in plain language, see useful work begin, understand what the agent is doing, and know when their input is required.
 
 ## Core Journey
 
@@ -33,10 +37,10 @@ Within 30 seconds, a person should be able to state the goal in plain language, 
 - Reason before asking. Do not turn the conversation into a form.
 - Ask only questions that materially change identity, scope, or authorization.
 - Operate autonomously inside the user's standing scope.
-- Surface uncertainty, source provenance, and confidence without dumping internal chain of thought.
+- Surface uncertainty, source provenance, and confidence without exposing internal chain of thought.
 - Treat the existing approval system as the policy engine. Standing authorization satisfies routine in-scope actions; out-of-scope or conflicting actions interrupt the user.
 - Rehearse destructive work before execution and preserve rollback evidence.
-- Keep the synthetic demo honest. No live execution claims.
+- Keep disconnected states honest. No live execution claims without a tool result.
 
 ## Required Capability Coverage
 
@@ -56,7 +60,7 @@ Within 30 seconds, a person should be able to state the goal in plain language, 
 
 ## Personality
 
-Calm, private, reassuring, and forensic. Plain language first; technical evidence remains one disclosure away.
+Calm, private, reassuring, and forensic. Lead with plain language, with technical evidence available when needed.
 
 ## Strategic Principles
 
@@ -76,4 +80,3 @@ Calm, private, reassuring, and forensic. Plain language first; technical evidenc
 - Neon lime, purple gradients, glassmorphism, glowing blobs, and pill overload
 - Repeated feature-card grids
 - Architecture explanation before the working agent
-

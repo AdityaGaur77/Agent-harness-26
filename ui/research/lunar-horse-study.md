@@ -24,15 +24,17 @@ Source inspected live on 2026-08-28: <https://lunar-horse.webflow.io/>
 ## Translation into Blast Radius
 
 - Preserved: one dominant generative scene, strict edge alignment, thin rules, large whitespace, discrete frame cadence, organic cell assembly, and local pointer repulsion.
-- Replaced: the horse imagery with an original data-subject constellation, FK paths, shadow clone, rehearsal rings, ordered resolution lanes, and a human gate.
-- Added: long-form progressive disclosure so every repository feature remains discoverable; explicit motion pause; reduced-motion behavior; offscreen RAF suspension; accessible canvas labels; and a non-destructive local approval demo.
-- Avoided: copied source assets, hidden navigation, dashboard rails, overlapping telemetry, decorative gradients, and any cursor interaction that implies a deletion occurred.
+- Rebuilt for motion fidelity: the procedural ellipse-and-limb approximation was removed. The landing renderer now samples an eleven-frame, locally bundled horse-and-rider gallop sequence through the same luminance ramp and edge-weighting constants as the reference.
+- Provenance: the reference describes the work as an ASCII reinterpretation of Eadweard Muybridge's horse-in-motion study. The locally bundled WebP frames were captured from the source page for this faithful prototype; production reuse still requires confirming the source site's asset terms or replacing them with equivalently authored licensed frames.
+- Added: a true first-visit front door, a measured handoff into the existing agent workspace, randomized glyph assembly, reduced-motion behavior, offscreen RAF suspension, accessible canvas labeling, and the non-destructive demo honesty note.
+- Kept: the full harness workflow behind the front door—prompt-first home, clarification, five parallel checks, pause/resume, evidence, rehearsal, rollback, scope controls, connectors, audit history, and completion.
+- Avoided: hotlinked assets, hidden navigation in the agent area, dashboard rails on the landing view, overlapping telemetry, decorative gradients, and any cursor interaction that implies a deletion occurred.
 
 ## Implementation values
 
 - Canvas cadence: 12 FPS.
-- Glyph reveal: deterministic 0–1250ms delay with 150ms fade.
-- Pointer radius: 110 CSS pixels; repulsion multiplier 0.3.
+- Glyph reveal: randomized 0–1250ms delay with 150ms fade.
+- Pointer radius: 110 sampled-canvas pixels; repulsion multiplier 0.3.
 - DPR cap: 2.
-- Responsive grids: 12 columns on desktop, one-column content flow below 820px.
-- Palette: mineral paper `#eef1eb`, carbon `#172019`, moss `#3f664d`, signal `#b7d34d`, risk-only oxide `#9d4d3f`.
+- Landing canvas: 68vw × 80vh at desktop with a 10vw product-layout shift; 99vw × 43vh below 860px with the reference's 10vw vertical offset.
+- Palette: warm mineral paper, carbon ink, one restrained moss accent, and oxide only for actionable harness errors.
