@@ -171,6 +171,53 @@ async function callTrueForge(config, action, body) {
   return upstream;
 }
 
+const FALLBACK_MODELS = [
+  "google-gemini/gemini-3-6-flash",
+  "unorouter/step-3-7-flash-free",
+  "unorouter/glm-5-3-flash-free",
+  "unorouter/nemotron-lightning-free",
+  "unorouter/glm-4-flash-free",
+  "unorouter/gemma-4-31b-free",
+  "unorouter/glm-4-7-flash-free",
+  "google-gemini/gemini-3-5-flash-lite",
+];
+
+async function rotateAgentModel(config, requestedModel) {
+  try {
+    const getRes = await fetch(`${config.baseUrl}/api/v1/agents`, {
+      headers: config.token ? { Authorization: `Bearer ${config.token}` } : {},
+    });
+    if (!getRes.ok) return { success: false, error: "failed_to_list_agents" };
+    const agentsData = await getRes.json();
+    const agent = (agentsData?.data || []).find((a) => a.name === config.agentName);
+    if (!agent?.id) return { success: false, error: "agent_not_found" };
+
+    const currentModel = agent.manifest?.model?.name || "";
+    let nextModel = requestedModel;
+    if (!nextModel) {
+      const currentIndex = FALLBACK_MODELS.indexOf(currentModel);
+      nextModel = FALLBACK_MODELS[(currentIndex + 1) % FALLBACK_MODELS.length];
+    }
+
+    const updatedManifest = {
+      ...agent.manifest,
+      model: { name: nextModel },
+    };
+    const putRes = await fetch(`${config.baseUrl}/api/v1/agents/${encodeURIComponent(agent.id)}`, {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        ...(config.token ? { Authorization: `Bearer ${config.token}` } : {}),
+      },
+      body: JSON.stringify({ manifest: updatedManifest }),
+    });
+    if (!putRes.ok) return { success: false, error: "failed_to_update_agent" };
+    return { success: true, model: nextModel, previousModel: currentModel };
+  } catch (err) {
+    return { success: false, error: err?.message || "rotation_error" };
+  }
+}
+
 export const config = { maxDuration: 300 };
 
 export default async function handler(request, response) {
@@ -206,13 +253,19 @@ export default async function handler(request, response) {
   }
 
   const action = typeof body.action === "string" ? body.action : "";
-  const supportedActions = new Set(["status", "create", "turn", "subscribe", "events", "session", "cancel"]);
+  const supportedActions = new Set(["status", "create", "turn", "subscribe", "events", "session", "cancel", "rotate-model"]);
   if (!supportedActions.has(action)) {
     errorResponse(response, 400, "unsupported_action");
     return;
   }
   const configValues = runtimeConfig();
   if (!authorize(request, response, configValues.uiToken)) return;
+  if (action === "rotate-model") {
+    const result = await rotateAgentModel(configValues, body.model);
+    response.status(result.success ? 200 : 500).json(result);
+    return;
+  }
+
   if ((!configValues.configuredBaseUrl && isProductionRuntime()) || !configValues.baseUrl || !configValues.agentName) {
     errorResponse(response, 503, "trueforge_not_configured");
     return;

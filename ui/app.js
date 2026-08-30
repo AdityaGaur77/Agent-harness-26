@@ -1744,6 +1744,25 @@ function handleTrueForgeEvent(rawEvent, sequenceNumber) {
     case "turn.done": {
       const state = event.state || {};
       if (state.status === "error") {
+        const errorMsg = String(state.message || "");
+        const isQuotaOrBusy = /503|429|busy|high demand|rate limit|quota|temporar/i.test(errorMsg);
+        if (isQuotaOrBusy && (run.modelRetries || 0) < 3) {
+          run.modelRetries = (run.modelRetries || 0) + 1;
+          appendAudit("Fallback", "Current model is experiencing high demand. Rotating to fallback model…");
+          appendAgentMessage("The current model is experiencing high demand or rate limits. Automatically switching to a fallback model and continuing…");
+          void trueForgeJson("rotate-model").then((rot) => {
+            if (rot?.model && run.mode === "trueforge") {
+              appendAudit("Model rotated", `Switched to ${rot.model}`);
+              const fallbackInput = run.lastInput || [{ type: "user.message", content: userMissionCopy.textContent || homePrompt.value }];
+              return runTrueForgeTurn(fallbackInput, run.generation);
+            }
+          }).catch((err) => {
+            console.warn("Auto-rotation failed", err);
+            showServiceError(state.message || "The agent could not complete this turn.");
+            appendAudit("Error", state.message || "The agent could not complete this turn.");
+          });
+          break;
+        }
         showServiceError(state.message || "The agent could not complete this turn.");
         appendAudit("Error", state.message || "The agent could not complete this turn.");
         break;
@@ -1802,6 +1821,7 @@ function handleTrueForgeEvent(rawEvent, sequenceNumber) {
 
 async function runTrueForgeTurn(input, generation) {
   if (!trueForgeRuntime.sessionId) throw new Error("The agent session is not available.");
+  run.lastInput = input;
   trueForgeRuntime.streamController?.abort();
   trueForgeRuntime.streamController = new AbortController();
   // A new turn gets a new id. Clear the previous id before opening the stream
