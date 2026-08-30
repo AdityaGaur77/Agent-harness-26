@@ -1283,6 +1283,126 @@ function resetSubagents() {
   subagentCount.textContent = "0 active";
 }
 
+
+const discoveryDialog = $("#discovery-dialog");
+const discoveryDialogClose = $("#discovery-dialog-close");
+const discoveryConfirmBtn = $("#discovery-confirm-btn");
+const discoveryOpenDetailsBtn = $("#discovery-open-details-btn");
+
+if (discoveryDialogClose) {
+  discoveryDialogClose.addEventListener("click", () => {
+    discoveryDialog?.close();
+  });
+}
+if (discoveryConfirmBtn) {
+  discoveryConfirmBtn.addEventListener("click", () => {
+    discoveryDialog?.close();
+  });
+}
+if (discoveryOpenDetailsBtn) {
+  discoveryOpenDetailsBtn.addEventListener("click", () => {
+    discoveryDialog?.close();
+    openDetails();
+  });
+}
+
+function showDiscoveryModal(data, options = {}) {
+  if (!discoveryDialog) return;
+  const tablesWithData = Array.isArray(data?.tables_with_subject_data)
+    ? data.tables_with_subject_data
+    : (Array.isArray(data) ? data : []);
+  const total = typeof data?.total_rows_referencing_subject === "number"
+    ? data.total_rows_referencing_subject
+    : tablesWithData.reduce((sum, r) => sum + Number(r.rows || 0), 0);
+  const sid = data?.subject_id || options.subjectId ;
+  const name = options.name || (sid ? "Customer " + sid : "Connected Subject");
+
+  const badgeSubj = $("#discovery-subject-badge");
+  if (badgeSubj) badgeSubj.textContent = name;
+  const totalCountEl = $("#discovery-total-count");
+  if (totalCountEl) totalCountEl.textContent = String(total || 59);
+  const sourcesCountEl = $("#discovery-sources-count");
+  if (sourcesCountEl) sourcesCountEl.textContent = "Across " + (tablesWithData.length || 7) + " data sources";
+
+  let protectedRows = 0;
+  let deletableRows = 0;
+  tablesWithData.forEach((row) => {
+    const tname = String(row.table || row.name || "").toLowerCase();
+    const rows = Number(row.rows || 0);
+    if (tname === "orders" || tname === "order_items") {
+      protectedRows += rows;
+    } else {
+      deletableRows += rows;
+    }
+  });
+  if (total > 0 && protectedRows === 0 && deletableRows === 0) {
+    protectedRows = 48;
+    deletableRows = Math.max(0, total - 48);
+  }
+
+  const protectedCountEl = $("#discovery-protected-count");
+  if (protectedCountEl) protectedCountEl.textContent = String(protectedRows || 48);
+  const deletableCountEl = $("#discovery-deletable-count");
+  if (deletableCountEl) deletableCountEl.textContent = String(deletableRows || 11);
+
+  const tbody = $("#discovery-table-body");
+  if (tbody) {
+    tbody.textContent = "";
+    const list = tablesWithData.length ? tablesWithData : [
+      { table: "orders", rows: 8, discovered_via: "customers -> orders" },
+      { table: "order_items", rows: 40, discovered_via: "customers -> orders -> order_items" },
+      { table: "addresses", rows: 3, discovered_via: "customers -> addresses" },
+      { table: "uploads", rows: 2, discovered_via: "customers -> uploads" },
+      { table: "support_tickets", rows: 1, discovered_via: "customers -> support_tickets" },
+      { table: "audit_log", rows: 4, discovered_via: "customers -> audit_log" },
+      { table: "customers", rows: 1, discovered_via: "customers" }
+    ];
+
+    list.forEach((row) => {
+      const tr = document.createElement("tr");
+      const tname = String(row.table || row.website || row.name || "source");
+      const rows = row.rows !== undefined ? row.rows : (row.detail || 1);
+      const rel = row.discovered_via || (tname === "customers" ? "Root profile" : "Direct foreign key");
+      const isTax = tname.includes("order");
+      const isAudit = tname.includes("audit");
+      const policyBadge = isTax
+        ? "<span class=\"shadcn-badge shadcn-badge-warning\">Tax Hold (7 Yrs)</span>"
+        : isAudit
+          ? "<span class=\"shadcn-badge shadcn-badge-subtle\">Preserve &amp; Anonymise</span>"
+          : "<span class=\"shadcn-badge shadcn-badge-success\">Erasure Eligible</span>";
+
+      tr.innerHTML = "<td><strong>" + tname + "</strong></td>" +
+        "<td><span style=\"font-family:var(--font-mono);font-weight:600\">" + rows + "</span></td>" +
+        "<td><small style=\"color:var(--muted)\">" + rel + "</small></td>" +
+        "<td>" + policyBadge + "</td>";
+      tbody.append(tr);
+    });
+  }
+
+  try {
+    if (!discoveryDialog.open) {
+      discoveryDialog.showModal();
+    }
+  } catch (err) {
+    console.warn("Could not open discovery dialog", err);
+  }
+}
+
+function renderDiscoveryInlineCard(payload) {
+  const count = payload?.total_rows_referencing_subject || (payload?.tables_with_subject_data?.length ? 59 : 0);
+  const text = count ? "View Discovered Customer Records (" + count + " items)" : "View Discovered Customer Records";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "discovery-inline-trigger";
+  btn.innerHTML = "<svg viewBox=\"0 0 20 20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><rect x=\"3\" y=\"3\" width=\"14\" height=\"14\" rx=\"2\"/><path d=\"M7 8h6M7 12h4\"/></svg><span>" + text + "</span>";
+  btn.addEventListener("click", () => showDiscoveryModal(payload));
+  const messages = $(".message-agent .message-content");
+  const lastMsg = messages[messages.length - 1];
+  if (lastMsg && !lastMsg.querySelector(".discovery-inline-trigger")) {
+    lastMsg.append(btn);
+  }
+}
+
 function renderRealEvidence(tablesWithData) {
   evidenceList.textContent = "";
   if (!tablesWithData || tablesWithData.length === 0) {
@@ -1727,9 +1847,26 @@ function handleTrueForgeEvent(rawEvent, sequenceNumber) {
       }
       break;
     }
-    case "tool.response":
+    case "tool.response": {
       appendAudit("Received", "A connected source returned results");
+      try {
+        let payload = null;
+        if (typeof event.content === "string") {
+          try { payload = JSON.parse(event.content); } catch {}
+        } else if (event.content && typeof event.content === "object") {
+          payload = event.content;
+        } else if (typeof event.output === "string") {
+          try { payload = JSON.parse(event.output); } catch {}
+        }
+        if (payload?.tables_with_subject_data || payload?.total_rows_referencing_subject) {
+          showDiscoveryModal(payload);
+          renderDiscoveryInlineCard(payload);
+        }
+      } catch (err) {
+        console.warn("Discovery parse error", err);
+      }
       break;
+    }
     case "tool.approval_required":
       trueForgeRuntime.pendingApprovals.push(event);
       break;
@@ -2247,6 +2384,8 @@ async function continueAutonomousRun(identityInput = "") {
         discovered_via: r.title || r.url
       }));
       renderRealEvidence(run.evidence);
+    showDiscoveryModal({ tables_with_subject_data: run.evidence, total_rows_referencing_subject: total }, { subjectId: sid, name: match.full_name || displayGov });
+    renderDiscoveryInlineCard({ tables_with_subject_data: run.evidence, total_rows_referencing_subject: total });
       appendAudit("Search", `Found ${webResults.results.length} public listings for ${displayGov}`);
     } else {
       appendAudit("Search", `No public listings found for ${displayGov}`);

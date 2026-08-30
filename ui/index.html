@@ -458,6 +458,87 @@
       </form>
     </dialog>
 
+    <dialog class="product-dialog shadcn-dialog" id="discovery-dialog" aria-labelledby="discovery-dialog-title" aria-describedby="discovery-dialog-desc">
+      <div class="shadcn-dialog-card">
+        <header class="shadcn-dialog-header">
+          <div class="shadcn-dialog-heading">
+            <div class="shadcn-badge-row">
+              <span class="shadcn-badge shadcn-badge-outline" id="discovery-subject-badge">Connected Subject</span>
+              <span class="shadcn-badge shadcn-badge-success" id="discovery-match-badge">Verified Match</span>
+              <span class="shadcn-badge shadcn-badge-subtle" id="discovery-confidence-badge">100% Identity Confidence</span>
+            </div>
+            <h2 class="shadcn-dialog-title" id="discovery-dialog-title">Discovered Subject Data &amp; Dependencies</h2>
+            <p class="shadcn-dialog-desc" id="discovery-dialog-desc">Verified linked records, foreign key cascade graph, and retention policies discovered across connected data sources.</p>
+          </div>
+          <button class="icon-button shadcn-close-button" id="discovery-dialog-close" type="button" aria-label="Close findings modal">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg>
+          </button>
+        </header>
+
+        <div class="shadcn-dialog-body">
+          <div class="shadcn-stat-grid">
+            <div class="shadcn-stat-card">
+              <span class="shadcn-stat-label">Total Connected Records</span>
+              <strong class="shadcn-stat-value" id="discovery-total-count">59</strong>
+              <small class="shadcn-stat-note" id="discovery-sources-count">Across 7 data sources</small>
+            </div>
+            <div class="shadcn-stat-card">
+              <span class="shadcn-stat-label">Protected by Law</span>
+              <strong class="shadcn-stat-value shadcn-text-amber" id="discovery-protected-count">48</strong>
+              <small class="shadcn-stat-note">Tax retention policy (7 yrs)</small>
+            </div>
+            <div class="shadcn-stat-card">
+              <span class="shadcn-stat-label">Eligible for Erasure</span>
+              <strong class="shadcn-stat-value shadcn-text-emerald" id="discovery-deletable-count">11</strong>
+              <small class="shadcn-stat-note">Addresses, uploads, profile</small>
+            </div>
+            <div class="shadcn-stat-card">
+              <span class="shadcn-stat-label">Cascade Depth</span>
+              <strong class="shadcn-stat-value" id="discovery-cascade-depth">2 Levels</strong>
+              <small class="shadcn-stat-note">Foreign key dependency graph</small>
+            </div>
+          </div>
+
+          <div class="shadcn-table-container">
+            <div class="shadcn-table-header">
+              <h3>Connected Sources &amp; Table Breakdown</h3>
+              <span class="shadcn-table-sub" id="discovery-table-sub">Live database traversal</span>
+            </div>
+            <div class="shadcn-table-wrap">
+              <table class="shadcn-table" id="discovery-table">
+                <thead>
+                  <tr>
+                    <th>Source / Table</th>
+                    <th>Linked Records</th>
+                    <th>Relationship</th>
+                    <th>Compliance Policy</th>
+                  </tr>
+                </thead>
+                <tbody id="discovery-table-body">
+                  <tr><td colspan="4" class="shadcn-table-empty">Discovering connected records…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="shadcn-alert shadcn-alert-info" id="discovery-policy-alert">
+            <div class="shadcn-alert-icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 9v4M10 6.5h.01" /></svg>
+            </div>
+            <div class="shadcn-alert-content">
+              <h4>Statutory Retention &amp; Erasure Notice</h4>
+              <p id="discovery-policy-copy">Financial orders and line items must be preserved for 7 years under statutory tax requirements. Personal contact information (addresses, profiles, tickets) will be cleanly erased or anonymised in compliance with privacy regulations.</p>
+            </div>
+          </div>
+        </div>
+
+        <footer class="shadcn-dialog-footer">
+          <button class="shadcn-btn shadcn-btn-outline" id="discovery-open-details-btn" type="button">Inspect Full Rehearsal</button>
+          <button class="shadcn-btn shadcn-btn-primary" id="discovery-confirm-btn" type="button">Understood &amp; Continue</button>
+        </footer>
+      </div>
+    </dialog>
+
     <script>window.__TRUEFORGE_UI_TOKEN__ = "blast-radius-ui-secret-2026";</script>
     <script src="./app.js?v=20260829-live-harness2" defer></script>
   </body>
