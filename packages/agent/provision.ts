@@ -35,7 +35,7 @@ function isAllowedModel(model: string): boolean {
   // Native Gemini models are quota-controlled by Google and do not use the
   // OpenRouter-style `:free` suffix. Keep the free-only guard for every other
   // provider while allowing the provider configured in TrueForge's catalog.
-  return model.startsWith("google-gemini/") || model.startsWith("openrouter/") || isFreeModel(model);
+  return model.startsWith("google-gemini/") || model.startsWith("openrouter/") || model.startsWith("unorouter/") || isFreeModel(model);
 }
 
 async function main(): Promise<void> {
