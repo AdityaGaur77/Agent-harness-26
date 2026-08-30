@@ -194,6 +194,12 @@ See `docs/ACCEPTANCE.md`'s Qodo sweep table for the status of every PR's
 High-severity findings; every merged PR must show each one fixed or
 dismissed with a recorded reason before submission.
 
+The UI integration is carried on [PR #18](https://github.com/AdityaGaur77/Agent-harness-26/pull/18),
+which was opened from `codex/aarav-ui-live-harness` into `Aditya` and reviewed
+by Qodo with `/agentic_review`. Its latest review reports zero bugs, rule
+violations, and skill insights; it remains open until the live TrueForge and
+Daytona session is demonstrated and the maintainer merges it.
+
 ## AI assistance
 
 Per hackathon rule 12, this project used AI coding assistants throughout.
