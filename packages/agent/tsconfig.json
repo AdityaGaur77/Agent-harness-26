@@ -10,5 +10,5 @@
     "forceConsistentCasingInFileNames": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["provision.ts"]
+  "include": ["provision.ts", "verify-demo.ts"]
 }
